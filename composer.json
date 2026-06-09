@@ -1,0 +1,19 @@
+{
+    "name": "wordpress/jwt-auth",
+    "description": "OIDC / proxy JWT authentication for WordPress, configured via wp-config.php",
+    "type": "wordpress-plugin",
+    "license": "MIT",
+    "require": {
+        "php": ">=8.4",
+        "firebase/php-jwt": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "JwtAuth\\": "src/"
+        }
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true
+    }
+}
