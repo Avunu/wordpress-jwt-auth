@@ -3,7 +3,9 @@
 /**
  * Plugin Name:       JWT Auth
  * Description:       Redirect all WordPress authentication to an external OIDC or proxy JWT provider. Configure via wp-config.php — no admin UI required.
+ * x-release-please-start-version
  * Version:           1.0.0
+ * x-release-please-end
  * Requires PHP:      8.4
  * License:           MIT
  *
@@ -52,6 +54,18 @@ declare(strict_types=1);
 defined('WPINC') || exit;
 
 require_once __DIR__ . '/vendor/autoload.php';
+
+// Self-update from GitHub releases. The built zip attached to each release bundles
+// vendor/, so end users never need Composer.
+require_once __DIR__ . '/vendor/yahnis-elsts/plugin-update-checker/plugin-update-checker.php';
+
+$jwtAuthUpdateChecker = \YahnisElsts\PluginUpdateChecker\v5\PucFactory::buildUpdateChecker(
+    'https://github.com/Avunu/wordpress-jwt-auth/',
+    __FILE__,
+    'jwt-auth'
+);
+// Download the built release asset, not GitHub's source tarball (which lacks vendor/).
+$jwtAuthUpdateChecker->getVcsApi()->enableReleaseAssets('/jwt-auth\.zip$/');
 
 use JwtAuth\{AuthMode, Config, OidcClient, Validator, WooCommerce};
 

@@ -1,0 +1,46 @@
+name: Release
+
+# Release Please maintains a release PR from Conventional Commits on main.
+# Merging that PR bumps composer.json + jwt-auth.php + CHANGELOG.md, creates the tag
+# and GitHub Release (with auto-generated notes), then this job builds the plugin
+# zip with Nix and attaches it as the release asset that client sites self-update
+# from via plugin-update-checker.
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Release Please
+        id: release
+        uses: googleapis/release-please-action@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # Uses release-please-config.json + .release-please-manifest.json.
+
+      # The remaining steps run only when a release was actually created
+      # (i.e. the release PR was merged). The root package uses unprefixed outputs.
+      - uses: actions/checkout@v7
+        if: ${{ steps.release.outputs.release_created }}
+
+      - uses: DeterminateSystems/nix-installer-action@main
+        if: ${{ steps.release.outputs.release_created }}
+
+      - name: Build plugin zip
+        if: ${{ steps.release.outputs.release_created }}
+        run: nix build .#zip -L
+
+      - name: Attach zip to release
+        if: ${{ steps.release.outputs.release_created }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ steps.release.outputs.tag_name }}" \
+            result/jwt-auth.zip --clobber

@@ -21,6 +21,19 @@ Supports two modes:
 
 ## Installation
 
+### Recommended: install the release zip
+
+1. Download `jwt-auth.zip` from the [latest GitHub Release](https://github.com/Avunu/wordpress-jwt-auth/releases/latest)
+2. In WordPress, go to **Plugins → Add New → Upload Plugin** and upload the zip
+3. Configure the required constants in `wp-config.php` (see Configuration section)
+4. Activate the plugin through the WordPress admin interface
+
+The release zip bundles all Composer dependencies, so there is no separate `composer install`
+step. Once installed, the plugin checks GitHub for new releases and offers one-click updates
+through the normal WordPress Plugins screen.
+
+### From source (development)
+
 ```bash
 # 1. Place this directory inside wp-content/plugins/jwt-auth/
 # 2. Install dependencies
@@ -153,3 +166,40 @@ The button is only shown in OIDC mode. In proxy mode, users are automatically au
 - **Open redirect**: The post-login `redirect_to` value is stored server-side in the state transient and validated with `wp_validate_redirect()` on use. It is never passed through the browser.
 - **JWKS rotation**: Keys are cached for 1 hour. A signature validation failure triggers a one-time cache refresh before failing the request, accommodating live key rotation.
 - **Token replay**: WordPress auth cookies provide session continuity. The short-lived ID token (validated once at callback time) is not stored.
+
+---
+
+## Releasing
+
+Releases are fully automated from [Conventional Commits](https://www.conventionalcommits.org/)
+via [Release Please](https://github.com/googleapis/release-please). There is no manual version
+bump — just write conventional commit messages:
+
+- `fix: ...` → patch release (0.0.x)
+- `feat: ...` → minor release (0.x.0)
+- `feat!: ...` or a `BREAKING CHANGE:` footer → major release (x.0.0)
+- `chore: ...`, `docs: ...`, `refactor: ...` → no release on their own
+
+On every push to `main`, the [Release workflow](.github/workflows/release.yml) opens (or updates)
+a **release PR** that accumulates the pending changes and previews the next version + changelog.
+Merging that PR:
+
+1. bumps the version in `composer.json` (and the `jwt-auth.php` header) and updates `CHANGELOG.md`;
+2. creates the git tag and a GitHub Release with notes generated from the commits;
+3. builds the plugin on a Nix runner (`nix build .#zip`) and attaches `jwt-auth.zip`
+   (with `vendor/` bundled) as the release asset.
+
+Client sites then pick up the new version automatically via
+[plugin-update-checker](https://github.com/YahnisElsts/plugin-update-checker).
+
+The version in the `jwt-auth.php` plugin header is stamped from `composer.json` at build time, so
+`composer.json` is the single source of truth. (A from-source/dev checkout may show a stale
+header version until built — the published zip is always correct.)
+
+> **Repo setting:** Settings → Actions → General → Workflow permissions must allow
+> "Read and write permissions" and "Allow GitHub Actions to create and approve pull requests"
+> so Release Please can open the release PR.
+
+## License
+
+This plugin is licensed under the MIT license.

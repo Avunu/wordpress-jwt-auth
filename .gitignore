@@ -1,1 +1,5 @@
 vendor
+.devenv
+.direnv
+result
+jwt-auth.zip
