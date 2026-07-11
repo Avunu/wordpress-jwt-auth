@@ -64,3 +64,13 @@ jobs:
         run: |
           npm ci
           npm publish
+
+      # The worker ships via npm (GitHub Packages); its GitHub Release is informational.
+      # Mark it a prerelease so it never becomes the repo's "Latest" release — otherwise the
+      # plugin's update checker (which follows /releases/latest) would pick up a worker tag
+      # that has no jwt-auth.zip asset and fall back to the vendor-less source tarball.
+      - name: Keep worker release out of plugin-update-checker's way
+        if: ${{ steps.release.outputs['worker--release_created'] }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "${{ steps.release.outputs['worker--tag_name'] }}" --prerelease --latest=false
