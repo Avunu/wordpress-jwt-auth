@@ -5,7 +5,7 @@ import type { LoginFlow } from "../../src/flow-do";
 import type { FlowContext } from "../../src/schemas";
 
 // PKCE S256 pair (RFC 7636 Appendix B) — the DO stores/returns the challenge; /token proves
-// the verifier. Here we just assert the challenge round-trips out of consumeCode.
+// The verifier. Here we just assert the challenge round-trips out of consumeCode.
 const CODE_CHALLENGE = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM";
 const REDIRECT = "https://site.example/?jwt_auth_callback=1";
 
@@ -47,11 +47,17 @@ describe("LoginFlow Durable Object", () => {
     const stub = stubFor(flowId);
     await stub.create(context());
     const pinHash = await hashSecret("654321", flowId);
-    await stub.setChallenge("User@Example.com".toLowerCase(), pinHash, await hashSecret("tok", flowId));
+    await stub.setChallenge(
+      "User@Example.com".toLowerCase(),
+      pinHash,
+      await hashSecret("tok", flowId),
+    );
 
     const verified = await stub.verifyPin(pinHash);
     expect(verified.ok).toBe(true);
-    if (!verified.ok) return;
+    if (!verified.ok) {
+      return;
+    }
     expect(verified.code.startsWith(`${flowId}.`)).toBe(true);
     expect(verified.redirectUri).toBe(REDIRECT);
     expect(verified.state).toBe("wp-state-123");
@@ -59,7 +65,9 @@ describe("LoginFlow Durable Object", () => {
     // /token's consume: returns identity + the PKCE challenge, and is strictly single-use.
     const first = await stub.consumeCode(verified.code, REDIRECT);
     expect(first.ok).toBe(true);
-    if (!first.ok) return;
+    if (!first.ok) {
+      return;
+    }
     expect(first.codeChallenge).toBe(CODE_CHALLENGE);
     expect(first.identity.email).toBe("user@example.com");
     expect(first.identity.sub.startsWith("pin:")).toBe(true);
@@ -77,9 +85,14 @@ describe("LoginFlow Durable Object", () => {
 
     const verified = await stub.verifyPin(pinHash);
     expect(verified.ok).toBe(true);
-    if (!verified.ok) return;
+    if (!verified.ok) {
+      return;
+    }
 
-    const wrongRedirect = await stub.consumeCode(verified.code, "https://evil.example/?jwt_auth_callback=1");
+    const wrongRedirect = await stub.consumeCode(
+      verified.code,
+      "https://evil.example/?jwt_auth_callback=1",
+    );
     expect(wrongRedirect).toEqual({ ok: false, reason: "redirect_mismatch" });
   });
 
@@ -95,7 +108,9 @@ describe("LoginFlow Durable Object", () => {
 
     const good = await stub.verifyMagic(await hashSecret("magic-secret-token", flowId));
     expect(good.ok).toBe(true);
-    if (!good.ok) return;
+    if (!good.ok) {
+      return;
+    }
     expect(good.code.startsWith(`${flowId}.`)).toBe(true);
   });
 

@@ -5,11 +5,11 @@ const TURNSTILE_SCRIPT = "https://challenges.cloudflare.com/turnstile/v0/api.js"
 
 function esc(s: string): string {
   return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }
 
 const STYLE = `
@@ -136,10 +136,7 @@ export function magicConfirmPage(opts: {
 
 export function errorPage(opts: { title: string; message: string; status?: number }): Response {
   return htmlResponse(
-    page(
-      opts.title,
-      `<h1>${esc(opts.title)}</h1><p class="sub">${esc(opts.message)}</p>`,
-    ),
+    page(opts.title, `<h1>${esc(opts.title)}</h1><p class="sub">${esc(opts.message)}</p>`),
     opts.status ?? 400,
   );
 }

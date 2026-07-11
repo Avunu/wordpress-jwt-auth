@@ -14,7 +14,9 @@ export async function verifyTurnstile(
   const body = new FormData();
   body.append("secret", secret);
   body.append("response", token);
-  if (remoteIp) body.append("remoteip", remoteIp);
+  if (remoteIp) {
+    body.append("remoteip", remoteIp);
+  }
 
   let response: Response;
   try {
@@ -22,7 +24,9 @@ export async function verifyTurnstile(
   } catch {
     return false;
   }
-  if (!response.ok) return false;
+  if (!response.ok) {
+    return false;
+  }
 
   let json: unknown;
   try {

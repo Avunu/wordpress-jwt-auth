@@ -5,9 +5,9 @@ import type { AuthWorkerEnv } from "./env";
 // Per-deployment configuration, loaded and validated from Worker secrets.
 //
 // A deployment is "a tenant" purely by virtue of its secret bundle. If any
-// secret is missing or malformed we throw ConfigError so the request fails
-// with a 500 instead of the worker silently minting tokens with a wrong issuer,
-// audience, or key. Error messages reference field NAMES only, never values.
+// Secret is missing or malformed we throw ConfigError so the request fails
+// With a 500 instead of the worker silently minting tokens with a wrong issuer,
+// Audience, or key. Error messages reference field NAMES only, never values.
 // ---------------------------------------------------------------------------
 
 const redirectUriList = z.string().transform((raw, ctx): string[] => {
@@ -16,7 +16,9 @@ const redirectUriList = z.string().transform((raw, ctx): string[] => {
   if (trimmed.startsWith("[")) {
     try {
       const parsed: unknown = JSON.parse(trimmed);
-      if (!Array.isArray(parsed)) throw new Error("not an array");
+      if (!Array.isArray(parsed)) {
+        throw new TypeError("not an array");
+      }
       list = parsed.map((x) => String(x).trim());
     } catch {
       ctx.addIssue({ code: "custom", message: "must be a JSON array or comma-separated list" });
@@ -31,9 +33,7 @@ const redirectUriList = z.string().transform((raw, ctx): string[] => {
     return z.NEVER;
   }
   for (const uri of list) {
-    try {
-      new URL(uri);
-    } catch {
+    if (!URL.canParse(uri)) {
       ctx.addIssue({ code: "custom", message: `invalid redirect URI: ${uri}` });
       return z.NEVER;
     }
@@ -80,15 +80,13 @@ export class ConfigError extends Error {
  * parse the key. A no-op when the PEM already contains real newlines.
  */
 function normalisePem(pem: string): string {
-  return pem.includes("\\n") ? pem.replace(/\\n/g, "\n") : pem;
+  return pem.includes(String.raw`\n`) ? pem.replaceAll(String.raw`\n`, "\n") : pem;
 }
 
 export function loadConfig(env: AuthWorkerEnv): AppConfig {
   const parsed = EnvSecrets.safeParse(env);
   if (!parsed.success) {
-    const fields = parsed.error.issues.map(
-      (i) => `${i.path.join(".") || "(root)"} ${i.message}`,
-    );
+    const fields = parsed.error.issues.map((i) => `${i.path.join(".") || "(root)"} ${i.message}`);
     throw new ConfigError(fields);
   }
   const v = parsed.data;

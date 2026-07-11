@@ -1,10 +1,7 @@
 export const FLOW_COOKIE = "wp_auth_flow";
 
 export function json(data: unknown, status = 200): Response {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { "Content-Type": "application/json; charset=utf-8" },
-  });
+  return Response.json(data, { status });
 }
 
 /** 302 built by hand — Response.redirect() returns an immutable response whose headers
@@ -34,10 +31,14 @@ export function clearCookie(name: string): string {
 
 export function getCookie(request: Request, name: string): string | null {
   const header = request.headers.get("Cookie");
-  if (!header) return null;
+  if (!header) {
+    return null;
+  }
   for (const part of header.split(";")) {
     const eq = part.indexOf("=");
-    if (eq === -1) continue;
+    if (eq === -1) {
+      continue;
+    }
     if (part.slice(0, eq).trim() === name) {
       return decodeURIComponent(part.slice(eq + 1).trim());
     }
@@ -49,7 +50,9 @@ export async function readForm(request: Request): Promise<Record<string, string>
   const fd = await request.formData();
   const out: Record<string, string> = {};
   for (const [k, v] of fd) {
-    if (typeof v === "string") out[k] = v;
+    if (typeof v === "string") {
+      out[k] = v;
+    }
   }
   return out;
 }
@@ -59,12 +62,14 @@ export function clientIp(request: Request): string | null {
 }
 
 interface Limiter {
-  limit(options: { key: string }): Promise<{ success: boolean }>;
+  limit: (options: { key: string }) => Promise<{ success: boolean }>;
 }
 
 /** Check a rate-limit binding, failing OPEN on any error (Turnstile is the primary gate). */
 export async function underLimit(limiter: Limiter | undefined, key: string): Promise<boolean> {
-  if (!limiter) return true;
+  if (!limiter) {
+    return true;
+  }
   try {
     const { success } = await limiter.limit({ key });
     return success;

@@ -20,7 +20,7 @@ describe("loadConfig", () => {
     expect(c.issuer).toBe("https://auth.example.com");
     expect(c.issuerHost).toBe("auth.example.com");
     expect(c.allowedRedirectUris).toEqual(["https://example.com/?jwt_auth_callback=1"]);
-    expect(c.fromName).toBe("Sign in"); // default applied
+    expect(c.fromName).toBe("Sign in"); // Default applied
   });
 
   it("accepts a comma-separated redirect list", () => {
@@ -29,11 +29,14 @@ describe("loadConfig", () => {
     expect(c.allowedRedirectUris).toEqual(["https://a.com/?x=1", "https://b.com/?y=2"]);
   });
 
-  it("normalises a \\n-escaped PEM to real newlines", () => {
-    const env = { ...base(), SIGNING_KEY: "-----BEGIN PRIVATE KEY-----\\nMIIabc\\n-----END PRIVATE KEY-----" };
+  it(String.raw`normalises a \n-escaped PEM to real newlines`, () => {
+    const env = {
+      ...base(),
+      SIGNING_KEY: "-----BEGIN PRIVATE KEY-----\\nMIIabc\\n-----END PRIVATE KEY-----",
+    };
     const c = loadConfig(env as unknown as AuthWorkerEnv);
     expect(c.signingKeyPem).toContain("\n");
-    expect(c.signingKeyPem).not.toContain("\\n");
+    expect(c.signingKeyPem).not.toContain(String.raw`\n`);
   });
 
   it("throws ConfigError on a missing field", () => {

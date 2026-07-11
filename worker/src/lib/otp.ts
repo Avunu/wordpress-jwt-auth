@@ -6,12 +6,12 @@ import { hmacSha256Hex, randomHex, timingSafeEqual } from "./util";
  */
 export function generatePin(): string {
   const range = 1_000_000;
-  const limit = Math.floor(0xffff_ffff / range) * range;
+  const limit = Math.floor(0xff_ff_ff_ff / range) * range;
   const buf = new Uint32Array(1);
   let x: number;
   do {
     crypto.getRandomValues(buf);
-    x = buf[0]!;
+    x = buf[0] ?? 0;
   } while (x >= limit);
   return (x % range).toString().padStart(6, "0");
 }

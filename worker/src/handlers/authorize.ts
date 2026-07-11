@@ -68,11 +68,15 @@ export async function handleAuthorizePost(
   config: AppConfig,
 ): Promise<Response> {
   const flowId = getCookie(request, FLOW_COOKIE);
-  if (!flowId) return sessionExpired();
+  if (!flowId) {
+    return sessionExpired();
+  }
 
   const stub = getFlowStub(env, flowId);
   const context = await stub.getContext();
-  if (!context) return sessionExpired();
+  if (!context) {
+    return sessionExpired();
+  }
 
   const form = AuthorizeForm.safeParse(await readForm(request));
   if (!form.success) {
@@ -85,7 +89,15 @@ export async function handleAuthorizePost(
   }
 
   if (form.data.action === "request_code") {
-    return requestCode(env, config, stub, flowId, form.data.email, form.data["cf-turnstile-response"], request);
+    return requestCode(
+      env,
+      config,
+      stub,
+      flowId,
+      form.data.email,
+      form.data["cf-turnstile-response"],
+      request,
+    );
   }
   return verifyCode(config, stub, flowId, form.data.pin);
 }
@@ -100,10 +112,17 @@ async function requestCode(
   request: Request,
 ): Promise<Response> {
   const renderError = (error: string, status = 400): Response =>
-    emailFormPage({ siteLabel: config.issuerHost, siteKey: config.turnstileSiteKey, error, status });
+    emailFormPage({
+      siteLabel: config.issuerHost,
+      siteKey: config.turnstileSiteKey,
+      error,
+      status,
+    });
 
   const human = await verifyTurnstile(turnstileToken, config.turnstileSecretKey, clientIp(request));
-  if (!human) return renderError("Verification failed. Please try again.", 403);
+  if (!human) {
+    return renderError("Verification failed. Please try again.", 403);
+  }
 
   const emailHash = await sha256Hex(email);
   const ip = clientIp(request) ?? "noip";
@@ -121,7 +140,9 @@ async function requestCode(
     hashSecret(magicToken, flowId),
   ]);
   const stored = await stub.setChallenge(email, pinHash, magicHash);
-  if (!stored) return sessionExpired();
+  if (!stored) {
+    return sessionExpired();
+  }
 
   const magicUrl = `${config.issuer}/magic?flow=${encodeURIComponent(flowId)}&token=${encodeURIComponent(magicToken)}`;
   try {
@@ -132,12 +153,21 @@ async function requestCode(
       siteLabel: config.issuerHost,
       ttlMinutes: PIN_TTL_MINUTES,
     });
-  } catch (err) {
-    console.error(JSON.stringify({ event: "email_send_failed", code: (err as { code?: string }).code ?? null }));
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        event: "email_send_failed",
+        code: (error as { code?: string }).code ?? null,
+      }),
+    );
     return renderError("We couldn't send the email right now. Please try again.", 502);
   }
 
-  return pinFormPage({ siteLabel: config.issuerHost, email, notice: "Check your inbox for the 6-digit code." });
+  return pinFormPage({
+    siteLabel: config.issuerHost,
+    email,
+    notice: "Check your inbox for the 6-digit code.",
+  });
 }
 
 async function verifyCode(
@@ -154,27 +184,31 @@ async function verifyCode(
   }
 
   switch (result.reason) {
-    case "invalid":
+    case "invalid": {
       return pinFormPage({
         siteLabel: config.issuerHost,
         email: "your email",
         error: "That code is incorrect. Please try again.",
         status: 401,
       });
-    case "locked":
+    }
+    case "locked": {
       return errorPage({
         title: "Too many attempts",
         message: "You've entered the wrong code too many times. Return to the site to start over.",
         status: 429,
       });
-    case "expired":
+    }
+    case "expired": {
       return errorPage({
         title: "Code expired",
         message: "That code has expired. Return to the site and sign in again.",
         status: 410,
       });
-    default:
+    }
+    default: {
       return sessionExpired();
+    }
   }
 }
 

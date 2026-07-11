@@ -15,8 +15,8 @@ deployed Cloudflare Worker per site. **Deployment lives in the fleet repo, not h
 ```ts
 import worker, { LoginFlow, type AuthWorkerEnv } from "@avunu/jwt-auth-worker";
 // A thin wrapper is just:
-export default worker;        // the fetch handler
-export { LoginFlow };         // the Durable Object (must be re-exported from the entry)
+export default worker; // the fetch handler
+export { LoginFlow }; // the Durable Object (must be re-exported from the entry)
 ```
 
 The wrapper's `wrangler.jsonc` supplies the `LOGIN_FLOW` Durable Object (with a

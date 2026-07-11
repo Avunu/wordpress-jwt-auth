@@ -15,6 +15,8 @@ describe("PKCE S256", () => {
   });
 
   it("rejects a wrong challenge", async () => {
-    expect(await verifyPkceS256(verifier, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")).toBe(false);
+    expect(await verifyPkceS256(verifier, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")).toBe(
+      false,
+    );
   });
 });

@@ -11,7 +11,11 @@ import { finishRedirect } from "./authorize";
  * security scanner that auto-fetches the link does no harm. The human presses the button,
  * which POSTs back to actually sign in.
  */
-export async function handleMagicGet(request: Request, env: AuthWorkerEnv, config: AppConfig): Promise<Response> {
+export async function handleMagicGet(
+  request: Request,
+  env: AuthWorkerEnv,
+  config: AppConfig,
+): Promise<Response> {
   const url = new URL(request.url);
   const flow = url.searchParams.get("flow");
   const token = url.searchParams.get("token");
@@ -35,8 +39,8 @@ export async function handleMagicGet(request: Request, env: AuthWorkerEnv, confi
 /** POST /magic — the real human click. Consume the token and redirect back to WordPress. */
 export async function handleMagicPost(request: Request, env: AuthWorkerEnv): Promise<Response> {
   const form = await readForm(request);
-  const flow = form["flow"];
-  const token = form["token"];
+  const { flow } = form;
+  const { token } = form;
   if (!flow || !token) {
     return errorPage({ title: "Invalid link", message: "This sign-in link is incomplete." });
   }
@@ -49,23 +53,26 @@ export async function handleMagicPost(request: Request, env: AuthWorkerEnv): Pro
   }
 
   switch (result.reason) {
-    case "expired":
+    case "expired": {
       return errorPage({
         title: "Link expired",
         message: "This sign-in link has expired. Return to the site and try again.",
         status: 410,
       });
-    case "locked":
+    }
+    case "locked": {
       return errorPage({
         title: "Too many attempts",
         message: "Return to the site to start over.",
         status: 429,
       });
-    default:
+    }
+    default: {
       return errorPage({
         title: "Invalid link",
         message: "This sign-in link is no longer valid. Return to the site and try again.",
         status: 400,
       });
+    }
   }
 }

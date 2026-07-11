@@ -64,8 +64,13 @@ $jwtAuthUpdateChecker = \YahnisElsts\PluginUpdateChecker\v5\PucFactory::buildUpd
     __FILE__,
     'jwt-auth'
 );
+$jwtAuthVcsApi = $jwtAuthUpdateChecker->getVcsApi();
 // Download the built release asset, not GitHub's source tarball (which lacks vendor/).
-$jwtAuthUpdateChecker->getVcsApi()->enableReleaseAssets('/jwt-auth\.zip$/');
+$jwtAuthVcsApi->enableReleaseAssets('/jwt-auth\.zip$/');
+// This repo also publishes the companion worker under `jwt-auth-worker-v*` tags. Only
+// consider plain version tags (v1.2.3) so those never masquerade as a plugin update. PUC
+// derives the version as ltrim(tag, 'v'), so the filter matches a bare version number.
+$jwtAuthVcsApi->setReleaseVersionFilter('/^\d+\.\d+\.\d+/');
 
 use JwtAuth\{AuthMode, Config, OidcClient, Validator, WooCommerce};
 

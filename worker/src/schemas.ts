@@ -17,11 +17,7 @@ export const AuthorizeParams = z.object({
 export type AuthorizeParams = z.infer<typeof AuthorizeParams>;
 
 /** Email address, normalised to lowercase + trimmed. */
-export const EmailField = z
-  .string()
-  .trim()
-  .toLowerCase()
-  .pipe(z.email().max(254));
+export const EmailField = z.string().trim().toLowerCase().pipe(z.email().max(254));
 
 /** POST /authorize body — action-tagged union. */
 export const RequestCodeForm = z.object({
@@ -35,10 +31,7 @@ export const VerifyCodeForm = z.object({
   pin: z.string().regex(/^\d{6}$/),
 });
 
-export const AuthorizeForm = z.discriminatedUnion("action", [
-  RequestCodeForm,
-  VerifyCodeForm,
-]);
+export const AuthorizeForm = z.discriminatedUnion("action", [RequestCodeForm, VerifyCodeForm]);
 export type AuthorizeForm = z.infer<typeof AuthorizeForm>;
 
 /** POST /token body from the WordPress plugin's exchangeCode(). */

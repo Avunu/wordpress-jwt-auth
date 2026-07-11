@@ -23,11 +23,8 @@ export function handleDiscovery(config: AppConfig): Response {
 
 export async function handleJwks(config: AppConfig): Promise<Response> {
   const jwks = await publicJwks(config);
-  return new Response(JSON.stringify(jwks), {
-    headers: {
-      "Content-Type": "application/json; charset=utf-8",
-      // Public keys are stable; let WordPress and CDNs cache them.
-      "Cache-Control": "public, max-age=3600",
-    },
+  // Public keys are stable; let WordPress and CDNs cache them.
+  return Response.json(jwks, {
+    headers: { "Cache-Control": "public, max-age=3600" },
   });
 }

@@ -1,4 +1,5 @@
-import { SignJWT, importPKCS8, exportJWK, calculateJwkThumbprint, type JWK } from "jose";
+import { SignJWT, importPKCS8, exportJWK, calculateJwkThumbprint } from "jose";
+import type { JWK } from "jose";
 import type { AppConfig } from "../config";
 import type { Identity } from "../schemas";
 
@@ -11,12 +12,14 @@ interface KeyBundle {
 }
 
 // Deployment-scoped, not request-scoped: the signing key is identical for every request
-// of a given deployment. Memoised (keyed by the PEM) so we import + thumbprint once per
-// isolate rather than on every sign/JWKS call. Recomputes only if the secret changes.
+// Of a given deployment. Memoised (keyed by the PEM) so we import + thumbprint once per
+// Isolate rather than on every sign/JWKS call. Recomputes only if the secret changes.
 let bundleCache: KeyBundle | null = null;
 
 async function getKeyBundle(pem: string): Promise<KeyBundle> {
-  if (bundleCache && bundleCache.pem === pem) return bundleCache;
+  if (bundleCache && bundleCache.pem === pem) {
+    return bundleCache;
+  }
 
   const privateKey = await importPKCS8(pem, "RS256", { extractable: true });
   const full = await exportJWK(privateKey);
@@ -48,9 +51,15 @@ export async function signIdToken(
   const now = Math.floor(Date.now() / 1000);
 
   const claims: Record<string, string> = { email: identity.email };
-  if (identity.name) claims["name"] = identity.name;
-  if (identity.given_name) claims["given_name"] = identity.given_name;
-  if (identity.family_name) claims["family_name"] = identity.family_name;
+  if (identity.name) {
+    claims["name"] = identity.name;
+  }
+  if (identity.given_name) {
+    claims["given_name"] = identity.given_name;
+  }
+  if (identity.family_name) {
+    claims["family_name"] = identity.family_name;
+  }
 
   return new SignJWT(claims)
     .setProtectedHeader({ alg: "RS256", kid, typ: "JWT" })

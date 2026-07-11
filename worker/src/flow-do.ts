@@ -38,8 +38,10 @@ const KEY = "flow";
  */
 export class LoginFlow extends DurableObject<AuthWorkerEnv> {
   private get flowId(): string {
-    const name = this.ctx.id.name;
-    if (!name) throw new Error("LoginFlow must be addressed via idFromName");
+    const { name } = this.ctx.id;
+    if (!name) {
+      throw new Error("LoginFlow must be addressed via idFromName");
+    }
     return name;
   }
 
@@ -67,7 +69,9 @@ export class LoginFlow extends DurableObject<AuthWorkerEnv> {
   /** The immutable OIDC context, or null if the flow is missing/expired. */
   async getContext(): Promise<FlowContext | null> {
     const r = await this.load();
-    if (!r || Date.now() > r.createdAt + FLOW_TTL_MS) return null;
+    if (!r || Date.now() > r.createdAt + FLOW_TTL_MS) {
+      return null;
+    }
     const { email: _e, pinHash: _p, magicHash: _m, ...rest } = r;
     void _e;
     void _p;
@@ -86,7 +90,9 @@ export class LoginFlow extends DurableObject<AuthWorkerEnv> {
   async setChallenge(email: string, pinHash: string, magicHash: string): Promise<boolean> {
     return this.ctx.blockConcurrencyWhile(async () => {
       const r = await this.load();
-      if (!r || Date.now() > r.createdAt + FLOW_TTL_MS) return false;
+      if (!r || Date.now() > r.createdAt + FLOW_TTL_MS) {
+        return false;
+      }
       r.email = email;
       r.pinHash = pinHash;
       r.magicHash = magicHash;
@@ -115,12 +121,16 @@ export class LoginFlow extends DurableObject<AuthWorkerEnv> {
     submittedHash: string,
   ): Promise<VerifyResult> {
     const r = await this.load();
-    if (!r) return { ok: false, reason: "not_found" };
+    if (!r) {
+      return { ok: false, reason: "not_found" };
+    }
     const now = Date.now();
     if (now > r.createdAt + FLOW_TTL_MS || now > r.pinExpiresAt) {
       return { ok: false, reason: "expired" };
     }
-    if (r.attempts >= MAX_ATTEMPTS) return { ok: false, reason: "locked" };
+    if (r.attempts >= MAX_ATTEMPTS) {
+      return { ok: false, reason: "locked" };
+    }
 
     const stored = kind === "pin" ? r.pinHash : r.magicHash;
     const matches = stored !== null && timingSafeEqual(submittedHash, stored);
@@ -147,13 +157,25 @@ export class LoginFlow extends DurableObject<AuthWorkerEnv> {
   async consumeCode(code: string, redirectUri: string): Promise<ConsumeResult> {
     return this.ctx.blockConcurrencyWhile(async () => {
       const r = await this.load();
-      if (!r || !r.code) return { ok: false, reason: "not_found" };
+      if (!r || !r.code) {
+        return { ok: false, reason: "not_found" };
+      }
       const now = Date.now();
-      if (!timingSafeEqual(code, r.code)) return { ok: false, reason: "not_found" };
-      if (r.codeUsed) return { ok: false, reason: "used" };
-      if (now > r.codeExpiresAt) return { ok: false, reason: "expired" };
-      if (r.redirectUri !== redirectUri) return { ok: false, reason: "redirect_mismatch" };
-      if (!r.email) return { ok: false, reason: "not_found" };
+      if (!timingSafeEqual(code, r.code)) {
+        return { ok: false, reason: "not_found" };
+      }
+      if (r.codeUsed) {
+        return { ok: false, reason: "used" };
+      }
+      if (now > r.codeExpiresAt) {
+        return { ok: false, reason: "expired" };
+      }
+      if (r.redirectUri !== redirectUri) {
+        return { ok: false, reason: "redirect_mismatch" };
+      }
+      if (!r.email) {
+        return { ok: false, reason: "not_found" };
+      }
 
       r.codeUsed = true;
       await this.ctx.storage.put(KEY, r);

@@ -4,7 +4,9 @@ const enc = new TextEncoder();
 
 export function toHex(bytes: Uint8Array): string {
   let out = "";
-  for (const b of bytes) out += b.toString(16).padStart(2, "0");
+  for (const b of bytes) {
+    out += b.toString(16).padStart(2, "0");
+  }
   return out;
 }
 
@@ -49,8 +51,12 @@ export function randomHex(nBytes: number): string {
 export function timingSafeEqual(a: string, b: string): boolean {
   const ab = enc.encode(a);
   const bb = enc.encode(b);
-  if (ab.length !== bb.length) return false;
+  if (ab.length !== bb.length) {
+    return false;
+  }
   let diff = 0;
-  for (let i = 0; i < ab.length; i++) diff |= ab[i]! ^ bb[i]!;
+  for (const [i, x] of ab.entries()) {
+    diff |= x ^ (bb[i] ?? 0);
+  }
   return diff === 0;
 }
