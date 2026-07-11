@@ -1,0 +1,31 @@
+includes:
+    # Bootstraps php-stubs/wordpress-stubs and adds WordPress-aware rules
+    # (hook callback signatures, dynamic return types, WP constants).
+    - vendor/szepeviktor/phpstan-wordpress/extension.neon
+
+parameters:
+    level: 8
+    phpVersion: 80400
+    paths:
+        - jwt-auth.php
+        - src/
+    scanFiles:
+        # WooCommerce conditional tags / helpers used by the optional WC integration.
+        - vendor/php-stubs/woocommerce-stubs/woocommerce-stubs.php
+    bootstrapFiles:
+        - phpstan-bootstrap.php
+    # Environment constants that may or may not be defined at runtime; treat their
+    # values as unknown so `defined(...) && CONST` guards are analysed both ways.
+    dynamicConstantNames:
+        - WP_CLI
+        - DOING_CRON
+    # PHPDoc types on third-party boundaries (WP filters, JWT payloads) are not
+    # runtime-enforced; keep defensive null handling without false positives.
+    treatPhpDocTypesAsCertain: false
+    ignoreErrors:
+        # PucFactory::buildUpdateChecker() is typed as a broad union; narrowing it
+        # would require referencing the version-suffixed (v5pX) class names, which
+        # break on every plugin-update-checker minor release.
+        -
+            message: '#Call to an undefined method YahnisElsts\\PluginUpdateChecker.*#'
+            path: jwt-auth.php

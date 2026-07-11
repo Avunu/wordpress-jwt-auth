@@ -23,17 +23,23 @@
         };
         inherit (pkgs) lib stdenvNoCC;
 
-        php = pkgs.php84.withExtensions (
-          { enabled, all }:
-          enabled
-          ++ (with all; [
-            curl
-            mbstring
-            openssl
-            tokenizer
-            fileinfo
-          ])
-        );
+        php = pkgs.php84.buildEnv {
+          extensions = (
+            { enabled, all }:
+            enabled
+            ++ (with all; [
+              curl
+              mbstring
+              openssl
+              tokenizer
+              fileinfo
+            ])
+          );
+          # PHPStan parses the full WordPress stubs; the 128M default is not enough.
+          extraConfig = ''
+            memory_limit = 2G
+          '';
+        };
 
         composerData = builtins.fromJSON (builtins.readFile ./composer.json);
 
@@ -103,13 +109,43 @@
         devShells.default = pkgs.mkShell {
           packages = [
             php
-            pkgs.php84Packages.composer
+            php.packages.composer
+            pkgs.phpstan
           ];
 
           shellHook = ''
             echo "PHP $(php --version | head -1)"
             echo "Composer $(composer --version)"
           '';
+        };
+
+        # ------------------------------------------------------------------ #
+        # nix flake check — PHPStan type checking (level 8, WordPress-aware). #
+        # Runs offline: composerDeps carries the dev packages (WordPress /    #
+        # WooCommerce stubs + phpstan-wordpress) from composer.lock. The      #
+        # PHPStan binary comes from nixpkgs: Packagist ships phpstan/phpstan  #
+        # dist-only (phar), which composition-c4 cannot fetch, so composer.json#
+        # `replace`s it and nix provides the executable.                      #
+        # ------------------------------------------------------------------ #
+        checks.phpstan = stdenvNoCC.mkDerivation {
+          name = "${pname}-phpstan-${version}";
+          inherit src composerDeps;
+
+          nativeBuildInputs = [
+            php
+            php.packages.composer
+            pkgs.phpstan
+            pkgs.c4.composerSetupHook
+          ];
+
+          buildPhase = ''
+            runHook preBuild
+            composer --no-ansi install --no-interaction
+            phpstan analyse --no-progress --no-ansi --memory-limit=2G
+            runHook postBuild
+          '';
+
+          installPhase = "touch $out";
         };
 
         packages = {
