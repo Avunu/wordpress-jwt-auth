@@ -1,13 +1,11 @@
 name: Release
 
-# Release Please maintains a release PR from Conventional Commits on main.
-# Merging that PR bumps composer.json + jwt-auth.php + worker/package.json + CHANGELOG.md,
-# creates the tag and GitHub Release (with auto-generated notes), then this job:
-#   1. builds the plugin zip with Nix and attaches it as the release asset that client sites
-#      self-update from via plugin-update-checker;
-#   2. publishes the companion worker (@avunu/jwt-auth-worker) to GitHub Packages, which the
-#      private deployment "fleet" repo consumes.
-# The plugin and the worker share one version (lockstep) and one unprefixed v{version} tag.
+# Release Please maintains a release PR from Conventional Commits on main. The repo has two
+# independently-versioned packages:
+#   • "."      the PHP plugin      → tag v{version}                → build+attach the Nix zip
+#   • "worker" @avunu/jwt-auth-worker → tag jwt-auth-worker-v{version} → publish to GitHub Packages
+# The root package keeps unprefixed v{version} tags so plugin-update-checker keeps working; the
+# worker carries a component prefix. Root outputs are unprefixed; the worker's are `worker--*`.
 on:
   push:
     branches:
@@ -29,11 +27,11 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           # Uses release-please-config.json + .release-please-manifest.json.
 
-      # The remaining steps run only when a release was actually created
-      # (i.e. the release PR was merged). The root package uses unprefixed outputs.
+      # Checkout once if ANY package released this run.
       - uses: actions/checkout@v7
-        if: ${{ steps.release.outputs.release_created }}
+        if: ${{ steps.release.outputs.releases_created }}
 
+      # --- Plugin (root package): build the Nix zip + attach to its v{version} release ------
       - uses: DeterminateSystems/nix-installer-action@main
         if: ${{ steps.release.outputs.release_created }}
 
@@ -49,9 +47,9 @@ jobs:
           gh release upload "${{ steps.release.outputs.tag_name }}" \
             result/jwt-auth.zip --clobber
 
-      # --- Publish the companion worker package to GitHub Packages -----------------
+      # --- Worker package: publish @avunu/jwt-auth-worker to GitHub Packages ----------------
       - name: Setup Node
-        if: ${{ steps.release.outputs.release_created }}
+        if: ${{ steps.release.outputs['worker--release_created'] }}
         uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -59,10 +57,10 @@ jobs:
           scope: "@avunu"
 
       - name: Publish @avunu/jwt-auth-worker
-        if: ${{ steps.release.outputs.release_created }}
+        if: ${{ steps.release.outputs['worker--release_created'] }}
         working-directory: worker
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          npm install --no-audit --no-fund
+          npm ci
           npm publish
