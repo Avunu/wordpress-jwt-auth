@@ -3,3 +3,4 @@ vendor
 .direnv
 result
 jwt-auth.zip
+.pre-commit-config.yaml

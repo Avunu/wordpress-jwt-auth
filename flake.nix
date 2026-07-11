@@ -5,6 +5,7 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     composition-c4.url = "github:fossar/composition-c4";
+    git-hooks.url = "github:cachix/git-hooks.nix";
   };
 
   outputs =
@@ -13,6 +14,7 @@
       nixpkgs,
       flake-utils,
       composition-c4,
+      git-hooks,
     }:
     flake-utils.lib.eachDefaultSystem (
       system:
@@ -40,6 +42,8 @@
             memory_limit = 2G
           '';
         };
+
+        nodejs = pkgs.nodejs_22;
 
         composerData = builtins.fromJSON (builtins.readFile ./composer.json);
 
@@ -104,19 +108,51 @@
             platforms = lib.platforms.all;
           };
         };
+
+        # ------------------------------------------------------------------ #
+        # git-hooks.nix — local pre-push quality gates. PHPStan (PHP) and the #
+        # worker's oxfmt/oxlint/tsc gate need composer vendor / node_modules, #
+        # which are absent from the read-only `nix flake check` sandbox, so   #
+        # both run at the `pre-push` stage: installed locally by the devShell #
+        # shellHook, skipped by the sandboxed flake check. CI covers the same #
+        # ground via checks.phpstan and the worker's Check workflow.          #
+        # ------------------------------------------------------------------ #
+        preCommitCheck = git-hooks.lib.${system}.run {
+          src = self;
+          hooks = {
+            phpstan = {
+              enable = true;
+              name = "phpstan (level 8, WordPress-aware)";
+              # The built-in hook defaults to the removed php84Packages.phpstan; pin the
+              # current top-level package. We run it via composer so it uses the project's
+              # phpstan.neon.dist and the vendored phpstan-wordpress extension.
+              package = pkgs.phpstan;
+              entry = "composer phpstan";
+              files = "\\.php$";
+              pass_filenames = false;
+              stages = [ "pre-push" ];
+            };
+            worker-check = {
+              enable = true;
+              name = "worker checks (oxfmt + oxlint + tsc)";
+              entry = "${nodejs}/bin/npm --prefix worker run check";
+              files = "^worker/.*\\.(ts|json|jsonc)$";
+              pass_filenames = false;
+              stages = [ "pre-push" ];
+            };
+          };
+        };
       in
       {
         devShells.default = pkgs.mkShell {
+          inherit (preCommitCheck) shellHook;
           packages = [
             php
             php.packages.composer
             pkgs.phpstan
-          ];
-
-          shellHook = ''
-            echo "PHP $(php --version | head -1)"
-            echo "Composer $(composer --version)"
-          '';
+            nodejs
+          ]
+          ++ preCommitCheck.enabledPackages;
         };
 
         # ------------------------------------------------------------------ #
@@ -147,6 +183,10 @@
 
           installPhase = "touch $out";
         };
+
+        # nix flake check also validates the git-hooks config (sandbox-safe hooks
+        # only; the pre-push phpstan/worker hooks are skipped here).
+        checks.pre-commit = preCommitCheck;
 
         packages = {
           default = pluginPackage;
