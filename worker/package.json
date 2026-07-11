@@ -1,6 +1,6 @@
 {
 	"name": "@avunu/jwt-auth-worker",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"description": "Email-PIN OIDC identity-provider Cloudflare Worker for the wordpress-jwt-auth plugin. Consumed by thin per-client wrappers.",
 	"license": "MIT",
 	"repository": {

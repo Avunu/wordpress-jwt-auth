@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.1.0](https://github.com/Avunu/wordpress-jwt-auth/compare/v1.0.1...v1.1.0) (2026-07-11)
+
+
+### Features
+
+* cloudflare worker ([254c7d3](https://github.com/Avunu/wordpress-jwt-auth/commit/254c7d3e403f3b75a9f4fa98e30d2a7a75074d37))
+
+
+### Miscellaneous Chores
+
+* cloudflare types ([7501606](https://github.com/Avunu/wordpress-jwt-auth/commit/7501606ad9a5855a106e8a600f7d782d76550478))
+* git-hooks ([da12bc4](https://github.com/Avunu/wordpress-jwt-auth/commit/da12bc48b619df93d1f414de4919cd9c8583f109))
+* release please ([091754d](https://github.com/Avunu/wordpress-jwt-auth/commit/091754d4fe1ed1243ca600dae057fee5ec5985c1))
+
 ## [1.0.1](https://github.com/Avunu/wordpress-jwt-auth/compare/v1.0.0...v1.0.1) (2026-07-10)
 
 
