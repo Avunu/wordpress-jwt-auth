@@ -11,7 +11,7 @@
     },
     "require-dev": {
         "php-stubs/wordpress-stubs": "^6.8",
-        "php-stubs/woocommerce-stubs": "^9.0",
+        "php-stubs/woocommerce-stubs": "^10.9",
         "szepeviktor/phpstan-wordpress": "^2.0"
     },
     "replace": {
