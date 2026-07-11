@@ -64,7 +64,12 @@ final class UserManager
 
         update_user_meta($userId, 'jwt_auth_sub', $claims->sub);
 
-        return get_user_by('ID', $userId);
+        $user = get_user_by('ID', $userId);
+        if (!$user instanceof \WP_User) {
+            throw new \RuntimeException('Failed to load the newly-created user.');
+        }
+
+        return $user;
     }
 
     /** Keeps display name and email in sync with the provider on every login. */

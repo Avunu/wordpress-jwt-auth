@@ -15,7 +15,11 @@ final class OidcClient
     // OIDC discovery
     // -------------------------------------------------------------------------
 
-    /** Returns the cached OIDC discovery document. Cached for 24 hours. */
+    /**
+     * Returns the cached OIDC discovery document. Cached for 24 hours.
+     *
+     * @return array<string, mixed>
+     */
     public static function discover(): array
     {
         $cacheKey = 'jwt_auth_disc_' . md5(Config::issuer());
@@ -174,6 +178,7 @@ final class OidcClient
         return $challenge;
     }
 
+    /** @return array<string, mixed> */
     private static function exchangeCode(string $code, string $verifier): array
     {
         $body = [
@@ -210,7 +215,11 @@ final class OidcClient
         return $data;
     }
 
-    /** Silent discovery attempt — returns empty array on failure (used for optional features like logout). */
+    /**
+     * Silent discovery attempt — returns empty array on failure (used for optional features like logout).
+     *
+     * @return array<string, mixed>
+     */
     private static function tryDiscover(): array
     {
         try {

@@ -8,14 +8,22 @@ final class Jwks
 {
     private const TTL = 3600; // 1 hour
 
-    /** Returns the cached JWKS array, fetching from the URI on a miss. */
+    /**
+     * Returns the cached JWKS array, fetching from the URI on a miss.
+     *
+     * @return array<string, mixed>
+     */
     public static function get(string $jwksUri): array
     {
         $cached = get_transient(self::key($jwksUri));
         return $cached !== false ? $cached : self::refresh($jwksUri);
     }
 
-    /** Forces a fresh fetch and updates the cache. Called on signature validation failure. */
+    /**
+     * Forces a fresh fetch and updates the cache. Called on signature validation failure.
+     *
+     * @return array<string, mixed>
+     */
     public static function refresh(string $jwksUri): array
     {
         $response = wp_remote_get($jwksUri, ['timeout' => 10]);

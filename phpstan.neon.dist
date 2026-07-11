@@ -14,11 +14,10 @@ parameters:
         - vendor/php-stubs/woocommerce-stubs/woocommerce-stubs.php
     bootstrapFiles:
         - phpstan-bootstrap.php
-    # Environment constants that may or may not be defined at runtime; treat their
-    # values as unknown so `defined(...) && CONST` guards are analysed both ways.
+    # Environment constant that may or may not be defined at runtime; treat its
+    # value as unknown so the `defined('WP_CLI') && WP_CLI` guard is analysed both ways.
     dynamicConstantNames:
         - WP_CLI
-        - DOING_CRON
     # PHPDoc types on third-party boundaries (WP filters, JWT payloads) are not
     # runtime-enforced; keep defensive null handling without false positives.
     treatPhpDocTypesAsCertain: false

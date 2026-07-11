@@ -6,6 +6,9 @@ namespace JwtAuth;
 
 final class Claims
 {
+    /**
+     * @param list<string>|string $aud
+     */
     public function __construct(
         public readonly string $email,
         public readonly string $sub,

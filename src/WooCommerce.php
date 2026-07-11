@@ -41,7 +41,7 @@ final class WooCommerce
             plugin_dir_url(__DIR__) . 'assets/woo-login.js',
             [],
             '1.0.0',
-            in_footer: true,
+            ['in_footer' => true],
         );
 
         wp_localize_script('jwt-auth-woo', 'jwtAuth', [

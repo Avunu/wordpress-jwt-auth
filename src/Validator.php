@@ -43,7 +43,7 @@ final class Validator
      */
     public static function blockDirectAuth(mixed $user, string $username, string $password): \WP_Error|\WP_User
     {
-        if ((defined('WP_CLI') && WP_CLI) || (defined('DOING_CRON') && DOING_CRON)) {
+        if ((defined('WP_CLI') && WP_CLI) || wp_doing_cron()) {
             return $user;
         }
 
