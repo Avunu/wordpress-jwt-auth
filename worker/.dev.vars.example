@@ -1,0 +1,10 @@
+# Local-dev secret bundle for `wrangler dev`. Copy to .dev.vars (gitignored) and fill in.
+# The SIGNING_KEY PEM must be a single line with literal \n between the base64 lines.
+ISSUER="http://localhost:8787"
+CLIENT_ID="wordpress"
+ALLOWED_REDIRECT_URIS=["http://localhost:8080/?jwt_auth_callback=1"]
+FROM_EMAIL="login@example.com"
+FROM_NAME="Dev Sign-in"
+TURNSTILE_SITE_KEY="1x00000000000000000000AA"
+TURNSTILE_SECRET_KEY="1x0000000000000000000000000000000AA"
+SIGNING_KEY="-----BEGIN PRIVATE KEY-----\nMIIEv...\n-----END PRIVATE KEY-----\n"

@@ -1,0 +1,51 @@
+{
+  "name": "@avunu/jwt-auth-worker",
+  "version": "1.0.1",
+  "description": "Email-PIN OIDC identity-provider Cloudflare Worker for the wordpress-jwt-auth plugin. Consumed by thin per-client wrappers.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "files": ["dist"],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Avunu/wordpress-jwt-auth.git",
+    "directory": "worker"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "dev": "wrangler dev",
+    "types": "wrangler types",
+    "test": "vitest run -c vitest.config.ts && vitest run -c vitest.integration.config.ts",
+    "test:unit": "vitest run -c vitest.config.ts",
+    "test:integration": "vitest run -c vitest.integration.config.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "jose": "6.2.3",
+    "zod": "4.4.3"
+  },
+  "peerDependencies": {
+    "@cloudflare/workers-types": "*"
+  },
+  "peerDependenciesMeta": {
+    "@cloudflare/workers-types": { "optional": true }
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "0.18.4",
+    "@cloudflare/workers-types": "5.20260710.1",
+    "typescript": "7.0.2",
+    "vitest": "4.1.10",
+    "wrangler": "4.110.0"
+  }
+}

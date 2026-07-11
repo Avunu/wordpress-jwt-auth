@@ -1,0 +1,7 @@
+node_modules
+package-lock.json
+dist
+.wrangler
+.dev.vars
+worker-configuration.d.ts
+*.tgz

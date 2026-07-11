@@ -1,10 +1,13 @@
 name: Release
 
 # Release Please maintains a release PR from Conventional Commits on main.
-# Merging that PR bumps composer.json + jwt-auth.php + CHANGELOG.md, creates the tag
-# and GitHub Release (with auto-generated notes), then this job builds the plugin
-# zip with Nix and attaches it as the release asset that client sites self-update
-# from via plugin-update-checker.
+# Merging that PR bumps composer.json + jwt-auth.php + worker/package.json + CHANGELOG.md,
+# creates the tag and GitHub Release (with auto-generated notes), then this job:
+#   1. builds the plugin zip with Nix and attaches it as the release asset that client sites
+#      self-update from via plugin-update-checker;
+#   2. publishes the companion worker (@avunu/jwt-auth-worker) to GitHub Packages, which the
+#      private deployment "fleet" repo consumes.
+# The plugin and the worker share one version (lockstep) and one unprefixed v{version} tag.
 on:
   push:
     branches:
@@ -13,6 +16,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  packages: write
 
 jobs:
   release:
@@ -44,3 +48,21 @@ jobs:
         run: |
           gh release upload "${{ steps.release.outputs.tag_name }}" \
             result/jwt-auth.zip --clobber
+
+      # --- Publish the companion worker package to GitHub Packages -----------------
+      - name: Setup Node
+        if: ${{ steps.release.outputs.release_created }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://npm.pkg.github.com
+          scope: "@avunu"
+
+      - name: Publish @avunu/jwt-auth-worker
+        if: ${{ steps.release.outputs.release_created }}
+        working-directory: worker
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          npm install --no-audit --no-fund
+          npm publish

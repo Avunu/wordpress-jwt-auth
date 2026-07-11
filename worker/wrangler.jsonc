@@ -1,0 +1,32 @@
+{
+  // Generic, committed base config. Contains NO client-specific values and NO secrets —
+  // every per-deployment configurable is a Worker secret (see client-secrets.example.json).
+  // Used directly for `wrangler dev` / `wrangler types`, and as the source that
+  // scripts/onboard.mjs patches (name + custom-domain route + account_id) into
+  // .deploy/wrangler.<client>.jsonc for each real deployment.
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "wordpress-auth-worker",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-10",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true, "head_sampling_rate": 1 },
+
+  // Native Email Sending. The from-address is supplied per send from the FROM_EMAIL
+  // secret, so the binding itself is unrestricted and identical for every deployment.
+  "send_email": [{ "name": "EMAIL" }],
+
+  // One LoginFlow Durable Object instance per in-progress login. SQLite-backed storage
+  // gives atomic attempt counting and strongly-consistent code reads. Each named
+  // deployment gets its own DO namespace, so tenants are isolated automatically.
+  "durable_objects": {
+    "bindings": [{ "name": "LOGIN_FLOW", "class_name": "LoginFlow" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["LoginFlow"] }],
+
+  // Cross-flow abuse throttles (belt-and-suspenders with Turnstile). Keys are prefixed
+  // with the issuer host in code so tenants sharing a namespace_id can't interfere.
+  "ratelimits": [
+    { "name": "RL_EMAIL", "namespace_id": "1001", "simple": { "limit": 5, "period": 60 } },
+    { "name": "RL_IP", "namespace_id": "1002", "simple": { "limit": 30, "period": 60 } }
+  ]
+}

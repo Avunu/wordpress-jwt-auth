@@ -97,6 +97,32 @@ define('JWT_AUTH_TOKEN_COOKIE', 'CF_Authorization');
 
 ---
 
+### Self-hosted email-PIN provider (Cloudflare Worker)
+
+If you don't want to run a full OIDC server, this repo ships a companion Cloudflare Worker
+that acts as an OIDC provider and authenticates users by emailing them a 6-digit PIN (plus a
+one-click magic link). It works with this plugin's **OIDC mode** — no extra constants beyond
+the three below.
+
+```php
+define('JWT_AUTH_ISSUER',        'https://auth.yoursite.com'); // your worker's origin
+define('JWT_AUTH_CLIENT_ID',     'wordpress');                  // must match the worker's CLIENT_ID
+define('JWT_AUTH_CLIENT_SECRET', ''); // PKCE-only public client (recommended)
+```
+
+New visitors who prove ownership of an email address get a `subscriber` account created
+automatically.
+
+The worker's source lives in [`worker/`](worker/) and is published to GitHub Packages as
+`@avunu/jwt-auth-worker` on each release (in lockstep with the plugin version). Actual
+deployments — one Cloudflare Worker per site — are managed from the private
+[`wordpress-auth-worker`](https://github.com/Avunu/wordpress-auth-worker) "fleet" repo, which
+consumes the package via thin per-client wrappers. See [`worker/README.md`](worker/README.md)
+and the fleet repo for deployment and the required Cloudflare setup (Email Sending domain
+onboarding, a Turnstile widget, and a custom domain).
+
+---
+
 ### All constants
 
 | Constant | Default | Description |
