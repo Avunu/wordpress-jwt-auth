@@ -4,12 +4,12 @@
 const TURNSTILE_SCRIPT = "https://challenges.cloudflare.com/turnstile/v0/api.js";
 
 function esc(s: string): string {
-  return s
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
+	return s
+		.replaceAll("&", "&amp;")
+		.replaceAll("<", "&lt;")
+		.replaceAll(">", "&gt;")
+		.replaceAll('"', "&quot;")
+		.replaceAll("'", "&#39;");
 }
 
 const STYLE = `
@@ -34,7 +34,7 @@ const STYLE = `
 `;
 
 function page(title: string, inner: string): string {
-  return `<!doctype html>
+	return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -50,20 +50,20 @@ function page(title: string, inner: string): string {
 const RESPONSE_HEADERS = { "Content-Type": "text/html; charset=utf-8" } as const;
 
 function htmlResponse(body: string, status = 200): Response {
-  return new Response(body, { status, headers: RESPONSE_HEADERS });
+	return new Response(body, { status, headers: RESPONSE_HEADERS });
 }
 
 export function emailFormPage(opts: {
-  siteLabel: string;
-  siteKey: string;
-  error?: string;
-  status?: number;
+	siteLabel: string;
+	siteKey: string;
+	error?: string;
+	status?: number;
 }): Response {
-  const err = opts.error ? `<div class="msg err">${esc(opts.error)}</div>` : "";
-  return htmlResponse(
-    page(
-      "Sign in",
-      `<h1>Sign in</h1>
+	const err = opts.error ? `<div class="msg err">${esc(opts.error)}</div>` : "";
+	return htmlResponse(
+		page(
+			"Sign in",
+			`<h1>Sign in</h1>
        <p class="sub">to ${esc(opts.siteLabel)}</p>
        ${err}
        <form method="POST" autocomplete="on">
@@ -74,24 +74,24 @@ export function emailFormPage(opts: {
          <button type="submit">Email me a code</button>
        </form>
        <script src="${TURNSTILE_SCRIPT}" async defer></script>`,
-    ),
-    opts.status ?? 200,
-  );
+		),
+		opts.status ?? 200,
+	);
 }
 
 export function pinFormPage(opts: {
-  siteLabel: string;
-  email: string;
-  notice?: string;
-  error?: string;
-  status?: number;
+	siteLabel: string;
+	email: string;
+	notice?: string;
+	error?: string;
+	status?: number;
 }): Response {
-  const notice = opts.notice ? `<div class="msg ok">${esc(opts.notice)}</div>` : "";
-  const err = opts.error ? `<div class="msg err">${esc(opts.error)}</div>` : "";
-  return htmlResponse(
-    page(
-      "Enter your code",
-      `<h1>Enter your code</h1>
+	const notice = opts.notice ? `<div class="msg ok">${esc(opts.notice)}</div>` : "";
+	const err = opts.error ? `<div class="msg err">${esc(opts.error)}</div>` : "";
+	return htmlResponse(
+		page(
+			"Enter your code",
+			`<h1>Enter your code</h1>
        <p class="sub">We emailed a 6-digit code to ${esc(opts.email)}</p>
        ${notice}${err}
        <form method="POST" autocomplete="off">
@@ -102,27 +102,27 @@ export function pinFormPage(opts: {
          <button type="submit">Sign in</button>
        </form>
        <p class="muted">Didn't get it? Check spam, or use the link in the email.</p>`,
-    ),
-    opts.status ?? 200,
-  );
+		),
+		opts.status ?? 200,
+	);
 }
 
 /**
- * The magic-link landing page. A bare GET only renders this — it never consumes the token,
- * so an email-security scanner's automatic GET is harmless. The human clicks the button,
- * which POSTs back to /magic to actually sign in.
+ * The magic-link landing page. A bare GET only renders this — it never consumes the token, so an
+ * email-security scanner's automatic GET is harmless. The human clicks the button, which POSTs back
+ * to /magic to actually sign in.
  */
 export function magicConfirmPage(opts: {
-  siteLabel: string;
-  flow: string;
-  token: string;
-  email?: string;
+	siteLabel: string;
+	flow: string;
+	token: string;
+	email?: string;
 }): Response {
-  const who = opts.email ? ` as ${esc(opts.email)}` : "";
-  return htmlResponse(
-    page(
-      "Confirm sign-in",
-      `<h1>Confirm sign-in</h1>
+	const who = opts.email ? ` as ${esc(opts.email)}` : "";
+	return htmlResponse(
+		page(
+			"Confirm sign-in",
+			`<h1>Confirm sign-in</h1>
        <p class="sub">Continue signing in to ${esc(opts.siteLabel)}${who}.</p>
        <form method="POST">
          <input type="hidden" name="flow" value="${esc(opts.flow)}">
@@ -130,13 +130,13 @@ export function magicConfirmPage(opts: {
          <button type="submit">Sign me in</button>
        </form>
        <p class="muted">Only continue if you started this sign-in.</p>`,
-    ),
-  );
+		),
+	);
 }
 
 export function errorPage(opts: { title: string; message: string; status?: number }): Response {
-  return htmlResponse(
-    page(opts.title, `<h1>${esc(opts.title)}</h1><p class="sub">${esc(opts.message)}</p>`),
-    opts.status ?? 400,
-  );
+	return htmlResponse(
+		page(opts.title, `<h1>${esc(opts.title)}</h1><p class="sub">${esc(opts.message)}</p>`),
+		opts.status ?? 400,
+	);
 }

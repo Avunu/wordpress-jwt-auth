@@ -8,8 +8,8 @@ import { cloudflareTest } from "@cloudflare/vitest-pool-workers";
 // Vitest-pool-workers v0.18 (for vitest 4) exposes its runtime as a Vite plugin,
 // `cloudflareTest(workersConfig)`, rather than the older `poolOptions.workers` config.
 export default defineConfig({
-  plugins: [cloudflareTest({ wrangler: { configPath: "./wrangler.jsonc" } })],
-  test: {
-    include: ["test/integration/**/*.test.ts"],
-  },
+	plugins: [cloudflareTest({ wrangler: { configPath: "./wrangler.jsonc" } })],
+	test: {
+		include: ["test/integration/**/*.test.ts"],
+	},
 });

@@ -5,8 +5,8 @@ import { defineConfig } from "vitest/config";
 // Runtime, so these run in plain Node. Durable Object / handler integration tests would use
 // @cloudflare/vitest-pool-workers instead.
 export default defineConfig({
-  test: {
-    include: ["test/unit/**/*.test.ts"],
-    environment: "node",
-  },
+	test: {
+		include: ["test/unit/**/*.test.ts"],
+		environment: "node",
+	},
 });
