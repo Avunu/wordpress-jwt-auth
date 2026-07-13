@@ -56,6 +56,12 @@ final class OidcClient
 
     public static function redirectToProvider(): void
     {
+        // Let WordPress's native logout flow run instead: it must destroy the session and clear
+        // the auth cookie before wp_logout() fires our handleLogout(), which then redirects to the
+        // provider's end-session endpoint. Redirecting here first would skip that entirely, leaving
+        // the user's WordPress session intact while bouncing them to the sign-in screen.
+        if (($_REQUEST['action'] ?? '') === 'logout') return;
+
         $redirectTo = sanitize_url($_REQUEST['redirect_to'] ?? Config::redirect());
         $state      = self::generateState($redirectTo);
         $challenge  = self::generatePkce($state);
