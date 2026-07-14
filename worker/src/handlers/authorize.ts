@@ -99,6 +99,14 @@ export async function handleAuthorizePost(
 			request,
 		);
 	}
+	if (form.data.action === "change_email") {
+		// Re-render the email form for this same flow so the user can enter a different address.
+		// Nothing is sent; a later request_code overwrites the challenge and resets attempts.
+		return emailFormPage({
+			siteLabel: config.issuerHost,
+			siteKey: config.turnstileSiteKey,
+		});
+	}
 	return verifyCode(config, stub, flowId, form.data.pin);
 }
 

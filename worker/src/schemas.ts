@@ -31,7 +31,16 @@ export const VerifyCodeForm = z.object({
 	pin: z.string().regex(/^\d{6}$/),
 });
 
-export const AuthorizeForm = z.discriminatedUnion("action", [RequestCodeForm, VerifyCodeForm]);
+/** Return to the email step for the same flow — no other fields. */
+export const ChangeEmailForm = z.object({
+	action: z.literal("change_email"),
+});
+
+export const AuthorizeForm = z.discriminatedUnion("action", [
+	RequestCodeForm,
+	VerifyCodeForm,
+	ChangeEmailForm,
+]);
 export type AuthorizeForm = z.infer<typeof AuthorizeForm>;
 
 /** POST /token body from the WordPress plugin's exchangeCode(). */

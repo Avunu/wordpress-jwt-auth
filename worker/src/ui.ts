@@ -26,6 +26,9 @@ const STYLE = `
   button{width:100%;padding:12px;font-size:15px;font-weight:600;color:#fff;background:#2563eb;border:0;
     border-radius:8px;cursor:pointer}
   button:hover{background:#1d4ed8}
+  form.alt{margin:12px 0 0;text-align:center}
+  .linkbtn{width:auto;padding:0;background:none;color:#2563eb;font-weight:600;font-size:13px;cursor:pointer}
+  .linkbtn:hover{background:none;text-decoration:underline}
   .cf-turnstile{margin:0 0 16px;display:flex;justify-content:center}
   .msg{font-size:13px;border-radius:8px;padding:10px 12px;margin:0 0 16px}
   .msg.err{background:#fef2f2;color:#b91c1c}
@@ -100,6 +103,10 @@ export function pinFormPage(opts: {
          <input id="pin" name="pin" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
                 required autofocus autocomplete="one-time-code" placeholder="000000">
          <button type="submit">Sign in</button>
+       </form>
+       <form method="POST" class="alt">
+         <input type="hidden" name="action" value="change_email">
+         <button type="submit" class="linkbtn">Use a different email address</button>
        </form>
        <p class="muted">Didn't get it? Check spam, or use the link in the email.</p>`,
 		),
