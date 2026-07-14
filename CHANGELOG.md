@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.2.0](https://github.com/Avunu/wordpress-jwt-auth/compare/v1.1.1...v1.2.0) (2026-07-14)
+
+
+### Features
+
+* **worker:** change email auth path ([b62dbb5](https://github.com/Avunu/wordpress-jwt-auth/commit/b62dbb548d0d4b343be8b2905e17be77108b7b15))
+
+
+### Miscellaneous Chores
+
+* bump actions/setup-node from 6 to 7 in the github-actions group ([#8](https://github.com/Avunu/wordpress-jwt-auth/issues/8)) ([9e944ca](https://github.com/Avunu/wordpress-jwt-auth/commit/9e944ca03023a4d46dd3f3ff9d4692072b7f4e62))
+* bump the npm group in /worker with 3 updates ([#9](https://github.com/Avunu/wordpress-jwt-auth/issues/9)) ([a4ce669](https://github.com/Avunu/wordpress-jwt-auth/commit/a4ce669fdc056870dd4f804e7efef737e59250e4))
+* **main:** release jwt-auth-worker 0.3.0 ([75a237f](https://github.com/Avunu/wordpress-jwt-auth/commit/75a237fa58c2c6afd9f682583c2262309bdcb328))
+* **main:** release jwt-auth-worker 0.3.0 ([e897df5](https://github.com/Avunu/wordpress-jwt-auth/commit/e897df56154c2844c62723065d16661c77417557))
+
 ## [1.1.1](https://github.com/Avunu/wordpress-jwt-auth/compare/v1.1.0...v1.1.1) (2026-07-13)
 
 

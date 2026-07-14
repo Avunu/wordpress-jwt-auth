@@ -4,7 +4,7 @@
  * Plugin Name:       JWT Auth
  * Description:       Redirect all WordPress authentication to an external OIDC or proxy JWT provider. Configure via wp-config.php — no admin UI required.
  * x-release-please-start-version
- * Version:           1.1.1
+ * Version:           1.2.0
  * x-release-please-end
  * Requires PHP:      8.4
  * License:           MIT
