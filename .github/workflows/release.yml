@@ -50,7 +50,7 @@ jobs:
       # --- Worker package: publish @avunu/jwt-auth-worker to GitHub Packages ----------------
       - name: Setup Node
         if: ${{ steps.release.outputs['worker--release_created'] }}
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           registry-url: https://npm.pkg.github.com
