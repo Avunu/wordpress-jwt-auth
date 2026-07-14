@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/Avunu/wordpress-jwt-auth/compare/jwt-auth-worker-v0.2.0...jwt-auth-worker-v0.3.0) (2026-07-14)
+
+
+### Features
+
+* **worker:** change email auth path ([b62dbb5](https://github.com/Avunu/wordpress-jwt-auth/commit/b62dbb548d0d4b343be8b2905e17be77108b7b15))
+
 ## [0.2.0](https://github.com/Avunu/wordpress-jwt-auth/compare/jwt-auth-worker-v0.1.0...jwt-auth-worker-v0.2.0) (2026-07-11)
 
 
