@@ -42,7 +42,7 @@
 		"upgrade": "npx npm-check-updates -u && npm install && npm audit fix"
 	},
 	"dependencies": {
-		"jose": "6.2.5",
+		"jose": "6.2.7",
 		"zod": "4.4.3"
 	},
 	"devDependencies": {
