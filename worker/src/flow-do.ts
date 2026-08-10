@@ -20,15 +20,42 @@ interface StoredFlow extends FlowContext {
 	codeUsed: boolean;
 }
 
+/**
+ * A completed flow. `email` is returned only on success — a caller that has just proved control of
+ * the inbox may know it (we start their SSO session with it), but a failed guess never learns the
+ * address behind the flow.
+ */
+export interface MintedCode {
+	code: string;
+	redirectUri: string;
+	state: string;
+	email: string;
+}
+
 export type VerifyResult =
-	| { ok: true; code: string; redirectUri: string; state: string }
+	| ({ ok: true } & MintedCode)
 	| { ok: false; reason: "not_found" | "expired" | "locked" | "invalid" };
 
 export type ConsumeResult =
-	| { ok: true; identity: Identity; codeChallenge: string }
+	| { ok: true; identity: Identity; codeChallenge: string; clientId: string }
 	| { ok: false; reason: "not_found" | "expired" | "used" | "redirect_mismatch" };
 
 const KEY = "flow";
+
+/** A freshly opened flow: the immutable OIDC context, with no challenge or code yet. */
+function blankFlow(context: FlowContext): StoredFlow {
+	return {
+		...context,
+		email: null,
+		pinHash: null,
+		magicHash: null,
+		pinExpiresAt: 0,
+		attempts: 0,
+		code: null,
+		codeExpiresAt: 0,
+		codeUsed: false,
+	};
+}
 
 /**
  * One instance per in-progress login, addressed by a random `flowId`. Being a single authoritative
@@ -51,19 +78,42 @@ export class LoginFlow extends DurableObject<AuthWorkerEnv> {
 
 	/** Initialise the flow with the immutable OIDC context and arm the cleanup alarm. */
 	async create(context: FlowContext): Promise<void> {
-		const record: StoredFlow = {
-			...context,
-			email: null,
-			pinHash: null,
-			magicHash: null,
-			pinExpiresAt: 0,
-			attempts: 0,
-			code: null,
-			codeExpiresAt: 0,
-			codeUsed: false,
-		};
-		await this.ctx.storage.put(KEY, record);
+		await this.ctx.storage.put(KEY, blankFlow(context));
 		await this.ctx.storage.setAlarm(context.createdAt + FLOW_TTL_MS);
+	}
+
+	/**
+	 * Open a flow and mint its code in one shot, for a browser whose SSO session already proves the
+	 * identity. Nothing is emailed and no challenge is ever stored — the /token exchange that follows
+	 * is byte-identical to the PIN path, so PKCE and single-use semantics are unchanged.
+	 */
+	async createAndComplete(context: FlowContext, email: string): Promise<MintedCode> {
+		return this.ctx.blockConcurrencyWhile(async () => {
+			const record = blankFlow(context);
+			record.email = email;
+			const code = this.mintCode(record, Date.now());
+			await this.ctx.storage.put(KEY, record);
+			await this.ctx.storage.setAlarm(context.createdAt + FLOW_TTL_MS);
+			return { code, redirectUri: record.redirectUri, state: record.wpState, email };
+		});
+	}
+
+	/** Complete an already-open flow from an SSO session (the "Continue as ..." confirmation). */
+	async completeWithIdentity(email: string): Promise<VerifyResult> {
+		return this.ctx.blockConcurrencyWhile(async () => {
+			const r = await this.load();
+			if (!r) {
+				return { ok: false, reason: "not_found" };
+			}
+			const now = Date.now();
+			if (now > r.createdAt + FLOW_TTL_MS) {
+				return { ok: false, reason: "expired" };
+			}
+			r.email = email;
+			const code = this.mintCode(r, now);
+			await this.ctx.storage.put(KEY, r);
+			return { ok: true, code, redirectUri: r.redirectUri, state: r.wpState, email };
+		});
 	}
 
 	/** The immutable OIDC context, or null if the flow is missing/expired. */
@@ -141,16 +191,30 @@ export class LoginFlow extends DurableObject<AuthWorkerEnv> {
 			return { ok: false, reason: "invalid" };
 		}
 
-		// Success: mint the code, invalidate both challenges so neither can be reused.
+		// Unreachable: a challenge only exists because setChallenge stored one alongside an email.
+		if (!r.email) {
+			return { ok: false, reason: "not_found" };
+		}
+
+		const code = this.mintCode(r, now);
+		await this.ctx.storage.put(KEY, r);
+
+		return { ok: true, code, redirectUri: r.redirectUri, state: r.wpState, email: r.email };
+	}
+
+	/**
+	 * Mint the single-use authorization code and retire both challenges so neither can be replayed.
+	 * Mutates the record; the caller persists. Shared by every path that completes a flow, so the
+	 * code's prefix, TTL, and single-use semantics can't drift between them.
+	 */
+	private mintCode(r: StoredFlow, now: number): string {
 		const code = `${this.flowId}.${randomHex(32)}`;
 		r.code = code;
 		r.codeExpiresAt = now + CODE_TTL_MS;
 		r.codeUsed = false;
 		r.pinHash = null;
 		r.magicHash = null;
-		await this.ctx.storage.put(KEY, r);
-
-		return { ok: true, code, redirectUri: r.redirectUri, state: r.wpState };
+		return code;
 	}
 
 	/** Single-use consumption of the authorization code by the /token endpoint. */
@@ -184,7 +248,9 @@ export class LoginFlow extends DurableObject<AuthWorkerEnv> {
 				email: r.email,
 				sub: `pin:${await sha256Hex(r.email)}`,
 			};
-			return { ok: true, identity, codeChallenge: r.codeChallenge };
+			// clientId travels with the result so /token can prove the caller owns this flow, rather
+			// than comparing against a single global client that no longer exists in a fleet.
+			return { ok: true, identity, codeChallenge: r.codeChallenge, clientId: r.clientId };
 		});
 	}
 

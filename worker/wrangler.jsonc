@@ -1,9 +1,8 @@
 {
-	// Generic, committed base config. Contains NO client-specific values and NO secrets —
-	// every per-deployment configurable is a Worker secret (see client-secrets.example.json).
-	// Used directly for `wrangler dev` / `wrangler types`, and as the source that
-	// scripts/onboard.mjs patches (name + custom-domain route + account_id) into
-	// .deploy/wrangler.<client>.jsonc for each real deployment.
+	// Generic, committed base config. Contains NO client-specific values and NO secrets — real
+	// deployments live in the fleet repo, which supplies its own wrangler.jsonc per Worker and
+	// carries the tenant list as bundled JSON. This file exists for `wrangler dev`, `wrangler
+	// types`, and the integration tests; local values come from .dev.vars (see .dev.vars.example).
 	"$schema": "./node_modules/wrangler/config-schema.json",
 	"name": "wordpress-auth-worker",
 	"main": "src/index.ts",
@@ -12,19 +11,28 @@
 	"observability": { "enabled": true, "head_sampling_rate": 1 },
 
 	// Native Email Sending. The from-address is supplied per send from the FROM_EMAIL
-	// secret, so the binding itself is unrestricted and identical for every deployment.
+	// config value, so the binding itself is unrestricted and identical for every deployment.
 	"send_email": [{ "name": "EMAIL" }],
 
-	// One LoginFlow Durable Object instance per in-progress login. SQLite-backed storage
-	// gives atomic attempt counting and strongly-consistent code reads. Each named
-	// deployment gets its own DO namespace, so tenants are isolated automatically.
+	// LOGIN_FLOW: one instance per in-progress login. SQLite-backed storage gives atomic attempt
+	// counting and strongly-consistent code reads.
+	// SSO_SESSION: one instance per signed-in browser, backing cross-site single sign-on. The
+	// binding is optional in code, so a single-site wrapper can omit it (and its migration) and
+	// simply fall back to asking for an email and PIN every time.
 	"durable_objects": {
-		"bindings": [{ "name": "LOGIN_FLOW", "class_name": "LoginFlow" }],
+		"bindings": [
+			{ "name": "LOGIN_FLOW", "class_name": "LoginFlow" },
+			{ "name": "SSO_SESSION", "class_name": "UserSession" },
+		],
 	},
-	"migrations": [{ "tag": "v1", "new_sqlite_classes": ["LoginFlow"] }],
+	"migrations": [
+		{ "tag": "v1", "new_sqlite_classes": ["LoginFlow"] },
+		{ "tag": "v2", "new_sqlite_classes": ["UserSession"] },
+	],
 
-	// Cross-flow abuse throttles (belt-and-suspenders with Turnstile). Keys are prefixed
-	// with the issuer host in code so tenants sharing a namespace_id can't interfere.
+	// Cross-flow abuse throttles (belt-and-suspenders with Turnstile). Keyed on the email address
+	// and the client IP alone: one issuer now serves every site, and a person is the same person
+	// wherever in the fleet they are signing in.
 	"ratelimits": [
 		{ "name": "RL_EMAIL", "namespace_id": "1001", "simple": { "limit": 5, "period": 60 } },
 		{ "name": "RL_IP", "namespace_id": "1002", "simple": { "limit": 30, "period": 60 } },

@@ -1,11 +1,19 @@
-// The `env` exported by `cloudflare:test` is typed as `Cloudflare.Env`. Populate it with the
-// worker's own binding/config contract so `env.LOGIN_FLOW` (and friends) are typed in the
-// integration tests without needing a generated worker-configuration.d.ts.
+// Types for the `env` and `exports` that `cloudflare:workers` hands the integration tests.
+//
+// `Cloudflare.Env` is an interface, so it merges by redeclaration. `Cloudflare.Exports` is a type
+// *derived* from `Cloudflare.GlobalProps["mainModule"]`, so it is populated by declaring the main
+// module here instead — which is what makes `exports.default.fetch()` typed. Doing it by hand keeps
+// the tests independent of a generated worker-configuration.d.ts.
 import type { AuthWorkerEnv } from "../../src/env";
 
 declare global {
 	namespace Cloudflare {
 		interface Env extends AuthWorkerEnv {}
+
+		interface GlobalProps {
+			mainModule: typeof import("../../src/index");
+			durableNamespaces: "LoginFlow" | "UserSession";
+		}
 	}
 }
 

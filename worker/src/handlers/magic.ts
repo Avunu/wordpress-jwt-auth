@@ -1,10 +1,10 @@
-import type { AppConfig } from "../config";
+import type { WorkerConfig } from "../config";
 import type { AuthWorkerEnv } from "../env";
 import { getFlowStub } from "../lib/flow";
 import { hashSecret } from "../lib/otp";
 import { readForm } from "../lib/http";
 import { magicConfirmPage, errorPage } from "../ui";
-import { finishRedirect } from "./authorize";
+import { completeSignIn } from "./authorize";
 
 /**
  * GET /magic — render the confirm page ONLY. It never consumes the token, so an email security
@@ -14,7 +14,7 @@ import { finishRedirect } from "./authorize";
 export async function handleMagicGet(
 	request: Request,
 	env: AuthWorkerEnv,
-	config: AppConfig,
+	config: WorkerConfig,
 ): Promise<Response> {
 	const url = new URL(request.url);
 	const flow = url.searchParams.get("flow");
@@ -33,11 +33,21 @@ export async function handleMagicGet(
 		});
 	}
 
-	return magicConfirmPage({ siteLabel: config.issuerHost, flow, token });
+	return magicConfirmPage({ tenant: config.tenants.get(context.clientId), flow, token });
 }
 
-/** POST /magic — the real human click. Consume the token and redirect back to WordPress. */
-export async function handleMagicPost(request: Request, env: AuthWorkerEnv): Promise<Response> {
+/**
+ * POST /magic — the real human click. Consume the token and redirect back to WordPress.
+ *
+ * Deliberately cookie-independent so the link works in a different browser or on another device;
+ * the 256-bit token is the whole authenticator. That also means the tenant has to come from the
+ * flow record rather than from a cookie or the form.
+ */
+export async function handleMagicPost(
+	request: Request,
+	env: AuthWorkerEnv,
+	config: WorkerConfig,
+): Promise<Response> {
 	const form = await readForm(request);
 	const { flow } = form;
 	const { token } = form;
@@ -45,11 +55,22 @@ export async function handleMagicPost(request: Request, env: AuthWorkerEnv): Pro
 		return errorPage({ title: "Invalid link", message: "This sign-in link is incomplete." });
 	}
 
+	const stub = getFlowStub(env, flow);
+	const context = await stub.getContext();
+	const tenant = context ? config.tenants.get(context.clientId) : null;
+	if (!tenant) {
+		return errorPage({
+			title: "Link expired",
+			message: "This sign-in link has expired. Return to the site and try again.",
+			status: 410,
+		});
+	}
+
 	const submittedHash = await hashSecret(token, flow);
-	const result = await getFlowStub(env, flow).verifyMagic(submittedHash);
+	const result = await stub.verifyMagic(submittedHash);
 
 	if (result.ok) {
-		return finishRedirect(result.redirectUri, result.code, result.state);
+		return completeSignIn(env, config.provider, tenant, result);
 	}
 
 	switch (result.reason) {
@@ -58,6 +79,7 @@ export async function handleMagicPost(request: Request, env: AuthWorkerEnv): Pro
 				title: "Link expired",
 				message: "This sign-in link has expired. Return to the site and try again.",
 				status: 410,
+				tenant,
 			});
 		}
 		case "locked": {
@@ -65,6 +87,7 @@ export async function handleMagicPost(request: Request, env: AuthWorkerEnv): Pro
 				title: "Too many attempts",
 				message: "Return to the site to start over.",
 				status: 429,
+				tenant,
 			});
 		}
 		default: {
@@ -72,6 +95,7 @@ export async function handleMagicPost(request: Request, env: AuthWorkerEnv): Pro
 				title: "Invalid link",
 				message: "This sign-in link is no longer valid. Return to the site and try again.",
 				status: 400,
+				tenant,
 			});
 		}
 	}

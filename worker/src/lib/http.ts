@@ -1,4 +1,10 @@
-export const FLOW_COOKIE = "wp_auth_flow";
+/**
+ * The `__Host-` prefix is a browser-enforced guarantee that the cookie was set by this exact host
+ * over HTTPS with no Domain attribute. Without it a sibling subdomain could set `Domain=<parent>`
+ * cookies of the same name that our getCookie would happily read first — session fixation of the
+ * login flow. It matters more now that one issuer host serves the whole fleet.
+ */
+export const FLOW_COOKIE = "__Host-wp_auth_flow";
 
 export function json(data: unknown, status = 200): Response {
 	return Response.json(data, { status });
@@ -15,6 +21,11 @@ export function redirect(location: string, extraHeaders: Record<string, string> 
 	});
 }
 
+/**
+ * SameSite=Lax is the correct choice throughout: the browser reaches /authorize by top-level GET
+ * navigation (which sends Lax cookies) and every form then POSTs same-site to the issuer's own
+ * origin. Path=/ + Secure + no Domain also satisfy the `__Host-` prefix's requirements.
+ */
 export function setCookie(name: string, value: string, maxAgeSeconds: number): string {
 	const attrs = [
 		`${name}=${encodeURIComponent(value)}`,
