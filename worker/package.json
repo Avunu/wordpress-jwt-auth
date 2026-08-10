@@ -46,14 +46,14 @@
 		"zod": "4.4.3"
 	},
 	"devDependencies": {
-		"@cloudflare/vitest-pool-workers": "^0.20.3",
-		"@cloudflare/workers-types": "^5.20260804.1",
-		"oxfmt": "^0.62.0",
-		"oxlint": "^1.77.0",
+		"@cloudflare/vitest-pool-workers": "^0.21.0",
+		"@cloudflare/workers-types": "^5.20260810.1",
+		"oxfmt": "^0.63.0",
+		"oxlint": "^1.78.0",
 		"oxlint-tsgolint": "^7.0.2001",
 		"typescript": "^7.0.2",
 		"vitest": "^4.1.10",
-		"wrangler": "^4.110.0"
+		"wrangler": "^4.120.1"
 	},
 	"peerDependencies": {
 		"@cloudflare/workers-types": "*"
