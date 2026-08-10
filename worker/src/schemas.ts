@@ -13,6 +13,8 @@ export const AuthorizeParams = z.object({
 	state: z.string().min(1).max(512),
 	code_challenge: z.string().min(20).max(256),
 	code_challenge_method: z.literal("S256"),
+	/** `login` forces a fresh email + PIN even when an SSO session exists. Other values are ignored. */
+	prompt: z.string().max(64).optional(),
 });
 export type AuthorizeParams = z.infer<typeof AuthorizeParams>;
 
@@ -36,10 +38,16 @@ export const ChangeEmailForm = z.object({
 	action: z.literal("change_email"),
 });
 
+/** Accept the SSO session's identity for a site this browser hasn't signed into before. */
+export const ContinueSsoForm = z.object({
+	action: z.literal("continue_sso"),
+});
+
 export const AuthorizeForm = z.discriminatedUnion("action", [
 	RequestCodeForm,
 	VerifyCodeForm,
 	ChangeEmailForm,
+	ContinueSsoForm,
 ]);
 export type AuthorizeForm = z.infer<typeof AuthorizeForm>;
 

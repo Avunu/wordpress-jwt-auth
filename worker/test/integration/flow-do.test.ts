@@ -1,4 +1,4 @@
-import { env } from "cloudflare:test";
+import { env } from "cloudflare:workers";
 import { describe, it, expect } from "vitest";
 import { hashSecret } from "../../src/lib/otp";
 import type { LoginFlow } from "../../src/flow-do";
@@ -71,6 +71,8 @@ describe("LoginFlow Durable Object", () => {
 		expect(first.codeChallenge).toBe(CODE_CHALLENGE);
 		expect(first.identity.email).toBe("user@example.com");
 		expect(first.identity.sub.startsWith("pin:")).toBe(true);
+		// /token compares this against the client presenting the code.
+		expect(first.clientId).toBe("wordpress");
 
 		const second = await stub.consumeCode(verified.code, REDIRECT);
 		expect(second).toEqual({ ok: false, reason: "used" });
@@ -119,5 +121,45 @@ describe("LoginFlow Durable Object", () => {
 		expect(await stub.getContext()).toBeNull();
 		const consumed = await stub.consumeCode("flow-never-created.deadbeef", REDIRECT);
 		expect(consumed).toEqual({ ok: false, reason: "not_found" });
+	});
+
+	// The SSO paths skip the challenge entirely, so what matters is that the code they hand out is
+	// indistinguishable from one earned with a PIN: same prefix, same single-use consumption, same
+	// PKCE binding. /token cannot tell — and must not need to tell — how a flow was completed.
+	it("createAndComplete mints a usable code without any challenge", async () => {
+		const flowId = "flow-sso-direct";
+		const stub = stubFor(flowId);
+
+		const minted = await stub.createAndComplete(context(), "sso@example.com");
+		expect(minted.code.startsWith(`${flowId}.`)).toBe(true);
+		expect(minted.redirectUri).toBe(REDIRECT);
+		expect(minted.state).toBe("wp-state-123");
+		expect(minted.email).toBe("sso@example.com");
+
+		const consumed = await stub.consumeCode(minted.code, REDIRECT);
+		expect(consumed.ok).toBe(true);
+		if (!consumed.ok) {
+			return;
+		}
+		expect(consumed.identity.email).toBe("sso@example.com");
+		expect(consumed.codeChallenge).toBe(CODE_CHALLENGE);
+		expect(await stub.consumeCode(minted.code, REDIRECT)).toEqual({ ok: false, reason: "used" });
+	});
+
+	it("completeWithIdentity finishes an already-open flow, and refuses a missing one", async () => {
+		const flowId = "flow-sso-continue";
+		const stub = stubFor(flowId);
+		await stub.create(context());
+
+		const result = await stub.completeWithIdentity("sso@example.com");
+		expect(result.ok).toBe(true);
+		if (!result.ok) {
+			return;
+		}
+		expect(result.code.startsWith(`${flowId}.`)).toBe(true);
+		expect(result.email).toBe("sso@example.com");
+
+		const orphan = await stubFor("flow-sso-orphan").completeWithIdentity("sso@example.com");
+		expect(orphan).toEqual({ ok: false, reason: "not_found" });
 	});
 });

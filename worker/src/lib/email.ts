@@ -1,12 +1,15 @@
-import type { AppConfig } from "../config";
+import type { ProviderConfig } from "../config";
 import type { AuthWorkerEnv } from "../env";
+import type { Tenant } from "../tenant";
+
+const DEFAULT_ACCENT = "#2563eb";
 
 interface LoginEmailArgs {
 	to: string;
 	pin: string;
 	magicUrl: string;
-	/** The site the user is signing in to (issuer host), shown for context. */
-	siteLabel: string;
+	/** The site the person is signing in to — the name they will recognise, not the issuer host. */
+	tenant: Tenant;
 	ttlMinutes: number;
 }
 
@@ -25,7 +28,9 @@ export function renderLoginEmail(args: LoginEmailArgs): {
 	html: string;
 	text: string;
 } {
-	const { pin, magicUrl, siteLabel, ttlMinutes } = args;
+	const { pin, magicUrl, tenant, ttlMinutes } = args;
+	const siteLabel = tenant.displayName;
+	const accent = tenant.accentColor ?? DEFAULT_ACCENT;
 	const subject = `Your sign-in code: ${pin}`;
 
 	const text = [
@@ -48,7 +53,7 @@ export function renderLoginEmail(args: LoginEmailArgs): {
         <p style="margin:0 0 4px;font-size:14px">Your verification code is:</p>
         <p style="margin:0 0 20px;font-size:40px;font-weight:700;letter-spacing:8px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">${esc(pin)}</p>
         <p style="margin:0 0 24px;font-size:13px;color:#666">Enter this code on the sign-in page. It expires in ${ttlMinutes} minutes.</p>
-        <a href="${esc(magicUrl)}" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;font-size:15px;font-weight:600">Sign in instantly</a>
+        <a href="${esc(magicUrl)}" style="display:inline-block;background:${esc(accent)};color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;font-size:15px;font-weight:600">Sign in instantly</a>
         <p style="margin:20px 0 0;font-size:12px;color:#999">If you didn't try to sign in, you can safely ignore this email.</p>
       </div>
     </div>
@@ -61,16 +66,22 @@ export function renderLoginEmail(args: LoginEmailArgs): {
 /**
  * Send the combined PIN + magic-link email via the native Email Sending binding. Throws on send
  * failure (the caller surfaces a retry-able message to the user).
+ *
+ * The From address is the provider's, not the tenant's: one verified sender domain means DMARC and
+ * SPF are set up once for the whole fleet instead of per site. The tenant supplies the display name
+ * — so the inbox shows "Anabaptist Perspectives sign-in" — and optionally a Reply-To that lands
+ * with the site owner rather than in a shared mailbox.
  */
 export async function sendLoginEmail(
 	env: AuthWorkerEnv,
-	config: AppConfig,
+	provider: ProviderConfig,
 	args: LoginEmailArgs,
 ): Promise<void> {
 	const { subject, html, text } = renderLoginEmail(args);
 	await env.EMAIL.send({
 		to: args.to,
-		from: { email: config.fromEmail, name: config.fromName },
+		from: { email: provider.fromEmail, name: `${args.tenant.displayName} sign-in` },
+		...(args.tenant.replyToEmail ? { replyTo: args.tenant.replyToEmail } : {}),
 		subject,
 		html,
 		text,

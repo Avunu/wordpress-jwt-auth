@@ -1,4 +1,4 @@
-import type { AppConfig } from "../config";
+import type { WorkerConfig } from "../config";
 import type { AuthWorkerEnv } from "../env";
 import { TokenForm } from "../schemas";
 import { getFlowStub } from "../lib/flow";
@@ -17,7 +17,7 @@ function oauthError(error: string, description: string, status = 400): Response 
 export async function handleToken(
 	request: Request,
 	env: AuthWorkerEnv,
-	config: AppConfig,
+	config: WorkerConfig,
 ): Promise<Response> {
 	const parsed = TokenForm.safeParse(await readForm(request));
 	if (!parsed.success) {
@@ -25,7 +25,8 @@ export async function handleToken(
 	}
 	const body = parsed.data;
 
-	if (body.client_id !== config.clientId) {
+	const tenant = config.tenants.get(body.client_id);
+	if (!tenant) {
 		return oauthError("invalid_client", "Unknown client.", 401);
 	}
 
@@ -41,12 +42,19 @@ export async function handleToken(
 		return oauthError("invalid_grant", `Authorization code ${result.reason}.`);
 	}
 
+	// Knowing a code is not enough to claim it: it must have been minted for the client presenting
+	// it. Without this, any tenant in the fleet could redeem another's code and receive a token
+	// stamped with its own audience.
+	if (result.clientId !== tenant.clientId) {
+		return oauthError("invalid_grant", "Authorization code was issued to another client.");
+	}
+
 	const pkceOk = await verifyPkceS256(body.code_verifier, result.codeChallenge);
 	if (!pkceOk) {
 		return oauthError("invalid_grant", "PKCE verification failed.");
 	}
 
-	const idToken = await signIdToken(config, result.identity, ID_TOKEN_TTL);
+	const idToken = await signIdToken(config.provider, tenant, result.identity, ID_TOKEN_TTL);
 
 	return json({
 		access_token: randomHex(32), // Opaque; WordPress ignores it but OIDC clients expect a value

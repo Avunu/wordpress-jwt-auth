@@ -58,6 +58,17 @@
 		"unicorn/no-null": "off",
 		"no-underscore-dangle": "off",
 
+		// ─── Off: actively harmful to this codebase ───────────────────────────
+		// Its autofix uppercases the first word of every *continuation* line of a
+		// wrapped prose comment, which is how src/lib/jwt.ts ended up asserting
+		// "the signing key is identical for every request / Of a given deployment".
+		// Comments here are wrapped sentences, not sentence-per-line.
+		"capitalized-comments": "off",
+		// Demands `const a = 1, b = 2` for every consecutive declaration in a scope.
+		// One binding per statement is the style of every file here, and merging
+		// them would obscure which values depend on which.
+		"one-var": "off",
+
 		// ─── Off: redundant with the TypeScript compiler ──────────────────────
 		// tsc strict owns undefined-identifier checking (lint has no type info).
 		"eslint/no-undef": "off",

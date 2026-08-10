@@ -1,7 +1,8 @@
 import { SignJWT, importPKCS8, exportJWK, calculateJwkThumbprint } from "jose";
 import type { JWK } from "jose";
-import type { AppConfig } from "../config";
+import type { ProviderConfig } from "../config";
 import type { Identity } from "../schemas";
+import type { Tenant } from "../tenant";
 
 interface KeyBundle {
 	pem: string;
@@ -36,18 +37,26 @@ async function getKeyBundle(pem: string): Promise<KeyBundle> {
 }
 
 /** The JWKS document served at /.well-known/jwks.json, derived from the private key. */
-export async function publicJwks(config: AppConfig): Promise<{ keys: JWK[] }> {
-	const { publicJwk } = await getKeyBundle(config.signingKeyPem);
+export async function publicJwks(provider: ProviderConfig): Promise<{ keys: JWK[] }> {
+	const { publicJwk } = await getKeyBundle(provider.signingKeyPem);
 	return { keys: [publicJwk] };
 }
 
-/** Mint a signed RS256 id_token for a resolved identity. */
+/**
+ * Mint a signed RS256 id_token for a resolved identity.
+ *
+ * `aud` is the tenant's client_id, and it is the whole of the fleet's token isolation: one issuer
+ * and one key sign for every site, so a token is confined to its site purely by the audience the
+ * plugin checks on arrival. The tenant must therefore be the one resolved from the flow, never from
+ * anything the caller of /token asserted about itself.
+ */
 export async function signIdToken(
-	config: AppConfig,
+	provider: ProviderConfig,
+	tenant: Tenant,
 	identity: Identity,
 	ttlSeconds = 300,
 ): Promise<string> {
-	const { privateKey, kid } = await getKeyBundle(config.signingKeyPem);
+	const { privateKey, kid } = await getKeyBundle(provider.signingKeyPem);
 	const now = Math.floor(Date.now() / 1000);
 
 	const claims: Record<string, string> = { email: identity.email };
@@ -63,9 +72,9 @@ export async function signIdToken(
 
 	return new SignJWT(claims)
 		.setProtectedHeader({ alg: "RS256", kid, typ: "JWT" })
-		.setIssuer(config.issuer)
+		.setIssuer(provider.issuer)
 		.setSubject(identity.sub)
-		.setAudience(config.clientId)
+		.setAudience(tenant.clientId)
 		.setIssuedAt(now)
 		.setExpirationTime(now + ttlSeconds)
 		.sign(privateKey);
