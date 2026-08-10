@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.2.1](https://github.com/Avunu/wordpress-jwt-auth/compare/v1.2.0...v1.2.1) (2026-08-10)
+
+
+### Miscellaneous Chores
+
+* bump @cloudflare/workers-types in /worker in the npm group ([#14](https://github.com/Avunu/wordpress-jwt-auth/issues/14)) ([0e87e06](https://github.com/Avunu/wordpress-jwt-auth/commit/0e87e06ba92aca279a102ae6fa42df699e1783c3))
+* bump @cloudflare/workers-types in /worker in the npm group ([#16](https://github.com/Avunu/wordpress-jwt-auth/issues/16)) ([52e8fd0](https://github.com/Avunu/wordpress-jwt-auth/commit/52e8fd0efd3774996c91620d6daf642c1a5f702a))
+* bump @cloudflare/workers-types in /worker in the npm group ([#20](https://github.com/Avunu/wordpress-jwt-auth/issues/20)) ([55f5a7a](https://github.com/Avunu/wordpress-jwt-auth/commit/55f5a7a4a350281fa5d045d9a0e500a1cba6d1bc))
+* bump @cloudflare/workers-types in /worker in the npm group ([#22](https://github.com/Avunu/wordpress-jwt-auth/issues/22)) ([ba3ad30](https://github.com/Avunu/wordpress-jwt-auth/commit/ba3ad3028926f2405fe47aa0abe491af4d7b99f6))
+* bump jose from 6.2.5 to 6.2.7 in /worker in the npm group ([#25](https://github.com/Avunu/wordpress-jwt-auth/issues/25)) ([6f773ce](https://github.com/Avunu/wordpress-jwt-auth/commit/6f773ce38b9da1bbd2225613adb49811478e209a))
+* bump php-stubs/woocommerce-stubs in the composer group ([#13](https://github.com/Avunu/wordpress-jwt-auth/issues/13)) ([d66ece3](https://github.com/Avunu/wordpress-jwt-auth/commit/d66ece3aee9b2d88a2d66d5af3a2e1f9cf7da78f))
+* bump the npm group in /worker with 2 updates ([#17](https://github.com/Avunu/wordpress-jwt-auth/issues/17)) ([46ed57f](https://github.com/Avunu/wordpress-jwt-auth/commit/46ed57f4e0a20afdf7625156a34121b5ccaf0196))
+* bump the npm group in /worker with 3 updates ([#12](https://github.com/Avunu/wordpress-jwt-auth/issues/12)) ([c923b22](https://github.com/Avunu/wordpress-jwt-auth/commit/c923b22f10e1c6b86340f136f7005d912ff4c858))
+* bump the npm group in /worker with 3 updates ([#19](https://github.com/Avunu/wordpress-jwt-auth/issues/19)) ([8d748ec](https://github.com/Avunu/wordpress-jwt-auth/commit/8d748ec8c83835b893cc6fde8879d7a3093996fb))
+* bump the npm group in /worker with 3 updates ([#21](https://github.com/Avunu/wordpress-jwt-auth/issues/21)) ([19a6926](https://github.com/Avunu/wordpress-jwt-auth/commit/19a6926f8e60285c4dab61ef41a9db9432b8ea6a))
+* bump the npm group in /worker with 3 updates ([#23](https://github.com/Avunu/wordpress-jwt-auth/issues/23)) ([0fb435e](https://github.com/Avunu/wordpress-jwt-auth/commit/0fb435ee0b426be0023ebf0ec04f9ad16813b91f))
+* bump the npm group in /worker with 4 updates ([#15](https://github.com/Avunu/wordpress-jwt-auth/issues/15)) ([c46908f](https://github.com/Avunu/wordpress-jwt-auth/commit/c46908fe612b5a0953de10cd3cc7aa09831ea338))
+* bump the npm group in /worker with 4 updates ([#24](https://github.com/Avunu/wordpress-jwt-auth/issues/24)) ([6f7e62c](https://github.com/Avunu/wordpress-jwt-auth/commit/6f7e62c457d70c63aded97e71e65bcdea535051f))
+* bump the npm group in /worker with 4 updates ([#26](https://github.com/Avunu/wordpress-jwt-auth/issues/26)) ([89e5eb3](https://github.com/Avunu/wordpress-jwt-auth/commit/89e5eb321621a90c612875beab125d8705f0ed3a))
+* bump the npm group in /worker with 6 updates ([#18](https://github.com/Avunu/wordpress-jwt-auth/issues/18)) ([0b5b955](https://github.com/Avunu/wordpress-jwt-auth/commit/0b5b955ad86c51bdafd3179e27f89e890103a4a1))
+* update flake ([d78a02e](https://github.com/Avunu/wordpress-jwt-auth/commit/d78a02e195b32afe16a1b8a2caa46ef2e4103cd1))
+
 ## [1.2.0](https://github.com/Avunu/wordpress-jwt-auth/compare/v1.1.1...v1.2.0) (2026-07-14)
 
 
