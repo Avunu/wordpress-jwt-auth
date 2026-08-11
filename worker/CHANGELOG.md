@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.0](https://github.com/Avunu/wordpress-jwt-auth/compare/jwt-auth-worker-v0.3.0...jwt-auth-worker-v1.0.0) (2026-08-10)
+
+
+### ⚠ BREAKING CHANGES
+
+* **worker:** the AppConfig type export is replaced by ProviderConfig and WorkerConfig, signIdToken now takes a tenant, and the flow cookie is renamed to __Host-wp_auth_flow, which invalidates logins in flight across a deploy.
+
+### Features
+
+* **worker:** serve many sites from one issuer, with cross-site SSO ([5caacdd](https://github.com/Avunu/wordpress-jwt-auth/commit/5caacdd9434819f460e7a64667031a5a49622b37))
+
 ## [0.3.0](https://github.com/Avunu/wordpress-jwt-auth/compare/jwt-auth-worker-v0.2.0...jwt-auth-worker-v0.3.0) (2026-07-14)
 
 
