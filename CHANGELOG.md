@@ -1,5 +1,25 @@
 # Changelog
 
+## [2.0.0](https://github.com/Avunu/wordpress-jwt-auth/compare/v1.2.1...v2.0.0) (2026-08-11)
+
+
+### ⚠ BREAKING CHANGES
+
+* **worker:** the AppConfig type export is replaced by ProviderConfig and WorkerConfig, signIdToken now takes a tenant, and the flow cookie is renamed to __Host-wp_auth_flow, which invalidates logins in flight across a deploy.
+
+### Features
+
+* **worker:** serve many sites from one issuer, with cross-site SSO ([5caacdd](https://github.com/Avunu/wordpress-jwt-auth/commit/5caacdd9434819f460e7a64667031a5a49622b37))
+
+
+### Miscellaneous Chores
+
+* bump php-stubs/woocommerce-stubs in the composer group ([#28](https://github.com/Avunu/wordpress-jwt-auth/issues/28)) ([f3ea605](https://github.com/Avunu/wordpress-jwt-auth/commit/f3ea60599751ffa9b818fa66830162b95e84bbab))
+* bump the npm group in /worker with 2 updates ([#29](https://github.com/Avunu/wordpress-jwt-auth/issues/29)) ([cdbd113](https://github.com/Avunu/wordpress-jwt-auth/commit/cdbd113d339dcb2d0ba66d42c0c0a831b8bc8aa3))
+* **main:** release jwt-auth-worker 1.0.0 ([a8d5eb2](https://github.com/Avunu/wordpress-jwt-auth/commit/a8d5eb27c3d40fcd71641aa71404d5400c8bb9cc))
+* **main:** release jwt-auth-worker 1.0.0 ([1317d50](https://github.com/Avunu/wordpress-jwt-auth/commit/1317d506fa59e603b55ee8114f3ce9b5fd19da75))
+* update deps ([9a13fbb](https://github.com/Avunu/wordpress-jwt-auth/commit/9a13fbbafb0376726fc451f5f6b45875f1645b8a))
+
 ## [1.2.1](https://github.com/Avunu/wordpress-jwt-auth/compare/v1.2.0...v1.2.1) (2026-08-10)
 
 
