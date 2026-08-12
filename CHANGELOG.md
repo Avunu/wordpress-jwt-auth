@@ -1,5 +1,28 @@
 # Changelog
 
+## [2.1.0](https://github.com/Avunu/wordpress-jwt-auth/compare/v2.0.0...v2.1.0) (2026-08-12)
+
+
+### Features
+
+* add a CI-gated PHPUnit suite for the plugin ([4ef4dd7](https://github.com/Avunu/wordpress-jwt-auth/commit/4ef4dd7e1d2cd234640b67291715fdd8dada766a))
+* add a CI-gated PHPUnit suite for the plugin ([b4ce6a9](https://github.com/Avunu/wordpress-jwt-auth/commit/b4ce6a97086ef3923a06c52e3faff126ee8615da))
+
+
+### Bug Fixes
+
+* **worker:** keep the flow cookie alive longer than the flow itself ([320fde8](https://github.com/Avunu/wordpress-jwt-auth/commit/320fde85c080ef149eeac4d9fe0e404ba95161fc))
+* **worker:** keep the flow cookie alive longer than the flow itself ([01fb5c3](https://github.com/Avunu/wordpress-jwt-auth/commit/01fb5c33a9ca4fcf8ee921a54375ab9f1bb85210))
+* **worker:** stop the session tests racing the wall clock ([b67a4eb](https://github.com/Avunu/wordpress-jwt-auth/commit/b67a4eb244c698dd6577d0fa81ca1d392e6102cc))
+
+
+### Miscellaneous Chores
+
+* **main:** release jwt-auth-worker 1.0.1 ([5bf7ea7](https://github.com/Avunu/wordpress-jwt-auth/commit/5bf7ea78143f1ded0be239dd7243cb7bc915e7fe))
+* **main:** release jwt-auth-worker 1.0.1 ([2605148](https://github.com/Avunu/wordpress-jwt-auth/commit/26051488a6ba7ba41329b68b758e2d53b4e7162f))
+* update deps ([3912b3e](https://github.com/Avunu/wordpress-jwt-auth/commit/3912b3ec9d5a524b66dec8a41c2d3fd2b3d47e27))
+* update deps ([e5834a2](https://github.com/Avunu/wordpress-jwt-auth/commit/e5834a2b94221519ddd9fac270ea958ddc7f710a))
+
 ## [2.0.0](https://github.com/Avunu/wordpress-jwt-auth/compare/v1.2.1...v2.0.0) (2026-08-11)
 
 
