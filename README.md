@@ -189,6 +189,32 @@ The button is only shown in OIDC mode. In proxy mode, users are automatically au
 
 * * *
 
+## Development
+
+```bash
+nix develop            # PHP 8.4 with the required extensions, Composer, PHPStan, Node
+composer install
+composer test          # PHPUnit
+composer phpstan       # static analysis, level 8, WordPress-aware
+composer check         # both
+```
+
+The plugin's suite runs against a small in-memory fake of the WordPress functions it calls
+([`tests/Support/functions.php`](tests/Support/functions.php)) rather than a real WordPress install,
+so it needs no database and finishes in well under a second. `wp_die()` and `wp_redirect()` throw
+instead of terminating, which is what makes the callback and redirect paths assertable.
+
+The crypto is real: [`KeyFixture`](tests/Support/KeyFixture.php) generates actual RSA keys and signs
+actual tokens, so the negative tests genuinely demonstrate that a forgery is rejected — `alg: none`,
+an HS256 token signed with the published public key, a token signed by an unadvertised key, and a
+tampered payload are each refused.
+
+Both gates run in CI on every push and pull request, offline, via the flake
+(`nix build .#checks.x86_64-linux.phpunit` and `.phpstan`) — the same commands you can run locally.
+The worker package has its own suite; see [`worker/README.md`](worker/README.md).
+
+* * *
+
 ## Releasing
 
 Releases are fully automated from [Conventional Commits](https://www.conventionalcommits.org/) via [Release Please](https://github.com/googleapis/release-please). There is no manual version bump — just write conventional commit messages:

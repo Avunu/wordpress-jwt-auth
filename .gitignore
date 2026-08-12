@@ -1,6 +1,7 @@
 vendor
 .devenv
 .direnv
+.phpunit.cache
 result
 jwt-auth.zip
 .pre-commit-config.yaml

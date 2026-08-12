@@ -1,9 +1,10 @@
 name: Check
 
 # Quality gates on every push and pull request (so Dependabot PRs are gated before
-# auto-merge). Two jobs:
+# auto-merge). Three jobs:
 #   • worker  — the worker package's OXC/TypeScript gate (oxfmt + oxlint + type-aware + tsc) + tests
 #   • phpstan — PHP static analysis (level 8, WordPress-aware) via the flake's checks.phpstan
+#   • phpunit — the plugin's test suite via the flake's checks.phpunit
 # The release build (release.yml) is separate.
 on:
   push:
@@ -42,3 +43,14 @@ jobs:
       # Self-contained, offline: composerDeps (WordPress/WooCommerce stubs + phpstan-wordpress)
       # come from composer.lock; the phpstan binary from nixpkgs. Builds under pure eval.
       - run: nix build .#checks.x86_64-linux.phpstan -L
+
+  phpunit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: DeterminateSystems/nix-installer-action@main
+
+      # Offline for the same reason as phpstan: phpunit and its dependencies come from
+      # composer.lock via composerDeps, so the suite needs no network.
+      - run: nix build .#checks.x86_64-linux.phpunit -L
