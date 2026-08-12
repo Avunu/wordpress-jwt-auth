@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { runInDurableObject } from "cloudflare:test";
 import { describe, it, expect } from "vitest";
 import type { UserSession } from "../../src/session-do";
 
@@ -19,6 +20,20 @@ function stubFor(sessionId: string): DurableObjectStub<UserSession> {
 function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => {
 		setTimeout(resolve, ms);
+	});
+}
+
+/** Read the persisted record and the scheduled expiry straight out of the instance. */
+async function inspect(
+	stub: DurableObjectStub<UserSession>,
+): Promise<{ lastSeenAt: number; alarm: number }> {
+	return runInDurableObject(stub, async (_instance, state) => {
+		const record = await state.storage.get<{ lastSeenAt: number }>("session");
+		const alarm = await state.storage.getAlarm();
+		if (!record || alarm === null) {
+			throw new Error("session or alarm missing");
+		}
+		return { lastSeenAt: record.lastSeenAt, alarm };
 	});
 }
 
@@ -51,25 +66,41 @@ describe("UserSession Durable Object", () => {
 		expect(await stub.touch()).toBeNull();
 	});
 
-	it("keeps a busy session alive by rolling the idle window forward", async () => {
+	it("rolls the idle window forward on every touch", async () => {
+		// Asserted against the stored record and the scheduled alarm rather than by racing real
+		// time: a version of this that slept just inside a short window and expected the session to
+		// survive is only as reliable as the CI runner is fast, and a stalled runner fails it for
+		// reasons that have nothing to do with the code.
 		const stub = stubFor("sess-rolling");
-		await stub.start(EMAIL, "alpha", 150, HOUR);
+		const idleMs = 60_000;
+		await stub.start(EMAIL, "alpha", idleMs, HOUR);
 
-		// Three gaps that each individually fit inside the window, totalling more than one window.
-		for (let i = 0; i < 3; i++) {
-			await sleep(80);
-			expect(await stub.touch()).not.toBeNull();
-		}
+		const before = await inspect(stub);
+		await sleep(50);
+
+		expect(await stub.touch()).not.toBeNull();
+		const after = await inspect(stub);
+
+		expect(after.lastSeenAt).toBeGreaterThan(before.lastSeenAt);
+		// The alarm is the expiry: pushing it out is what "rolling" actually means. It tracks the
+		// idle window here because that lands sooner than the absolute cap.
+		expect(after.alarm).toBeGreaterThan(before.alarm);
+		expect(after.alarm).toBe(after.lastSeenAt + idleMs);
 	});
 
 	it("dies at the absolute cap no matter how active it has been", async () => {
+		// Touch continuously with an hour-long idle window: only the hard ceiling can end this, so
+		// a slow runner makes the session die sooner rather than making the test flaky.
 		const stub = stubFor("sess-absolute");
-		await stub.start(EMAIL, "alpha", HOUR, 100);
+		await stub.start(EMAIL, "alpha", HOUR, 200);
 
-		await sleep(40);
-		expect(await stub.touch()).not.toBeNull(); // Still inside the cap.
-		await sleep(120);
-		expect(await stub.touch()).toBeNull();
+		let died = false;
+		for (let i = 0; i < 25 && !died; i++) {
+			await sleep(40);
+			died = (await stub.touch()) === null;
+		}
+
+		expect(died).toBe(true);
 	});
 
 	it("is gone for good after end()", async () => {
