@@ -117,6 +117,30 @@ describe("GET /authorize — tenant resolution", () => {
 		expect(res.headers.get("Cache-Control")).toBe("no-store");
 	});
 
+	it("re-issues the flow cookie on every step that keeps the flow open", async () => {
+		// The browser must never be the component that decides a sign-in has expired: its copy of the
+		// handle outlives the flow, and every interaction refreshes it. Otherwise a user who spends
+		// the budget waiting for the email loses the cookie mid-flow and gets "session expired" with
+		// no way to tell it apart from a genuinely dead flow.
+		const first = await get(authorizeUrl({ client_id: "alpha", redirect_uri: ALPHA_REDIRECT }));
+		const setCookie = first.headers.get("Set-Cookie") ?? "";
+		expect(setCookie).toContain("__Host-wp_auth_flow=");
+		expect(setCookie).toContain("Max-Age=900");
+		// __Host- requires Secure + Path=/ and forbids Domain, or the browser drops it silently.
+		expect(setCookie).toContain("Secure");
+		expect(setCookie).toContain("Path=/");
+		expect(setCookie).not.toContain("Domain=");
+
+		const [flowCookie] = setCookie.split(";");
+		const stepped = await postForm(
+			`${ISSUER}/authorize`,
+			{ action: "change_email" },
+			flowCookie ?? "",
+		);
+		expect(stepped.status).toBe(200);
+		expect(stepped.headers.get("Set-Cookie")).toContain("Max-Age=900");
+	});
+
 	it("rejects an unknown client_id", async () => {
 		const res = await get(authorizeUrl({ client_id: "nobody", redirect_uri: ALPHA_REDIRECT }));
 		expect(res.status).toBe(400);
