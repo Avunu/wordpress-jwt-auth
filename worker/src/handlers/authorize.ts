@@ -22,7 +22,14 @@ import { verifyTurnstile } from "../lib/turnstile";
 import { sendLoginEmail } from "../lib/email";
 import { continuePage, emailFormPage, errorPage, pinFormPage } from "../ui";
 
-const FLOW_TTL_SECONDS = 600;
+/**
+ * The cookie deliberately outlives the flow it points at. If both expire together, a user who takes
+ * slightly too long — email delivery plus finding and typing the PIN all fit inside one 10-minute
+ * budget — has their cookie silently dropped by the browser, and an expired flow becomes
+ * indistinguishable from a missing one. Letting the server stay the sole authority on expiry means
+ * the message we show is always the true reason.
+ */
+const FLOW_COOKIE_TTL_SECONDS = 900;
 const PIN_TTL_MINUTES = 5;
 
 type FlowStub = DurableObjectStub<LoginFlow>;
@@ -81,7 +88,7 @@ export async function handleAuthorizeGet(
 	const res = session
 		? continuePage({ tenant, email: session.email })
 		: emailFormPage({ tenant, siteKey: config.provider.turnstileSiteKey });
-	res.headers.append("Set-Cookie", setCookie(FLOW_COOKIE, flowId, FLOW_TTL_SECONDS));
+	res.headers.append("Set-Cookie", setCookie(FLOW_COOKIE, flowId, FLOW_COOKIE_TTL_SECONDS));
 	if (session) {
 		res.headers.append("Set-Cookie", session.cookie);
 	}
@@ -96,12 +103,17 @@ export async function handleAuthorizePost(
 ): Promise<Response> {
 	const flowId = getCookie(request, FLOW_COOKIE);
 	if (!flowId) {
+		// The two ways to reach "session expired" look identical to the user but mean very different
+		// things: no cookie is a browser/timing problem, a dead flow is a server-side expiry. Log
+		// which one so `wrangler tail` can tell them apart without guesswork.
+		console.log(JSON.stringify({ event: "flow_cookie_missing" }));
 		return sessionExpired();
 	}
 
 	const stub = getFlowStub(env, flowId);
 	const context = await stub.getContext();
 	if (!context) {
+		console.log(JSON.stringify({ event: "flow_not_found_or_expired" }));
 		return sessionExpired();
 	}
 
@@ -115,6 +127,25 @@ export async function handleAuthorizePost(
 		});
 	}
 
+	const res = await routeAuthorizeForm(request, env, config, stub, flowId, tenant);
+
+	// Any page that leaves the flow open re-issues the handle, so the browser's copy is refreshed
+	// from the last interaction rather than counting down from the initial page load. A completed
+	// flow redirects (302) and clears the cookie instead — never extend that.
+	if (res.status !== 302) {
+		res.headers.append("Set-Cookie", setCookie(FLOW_COOKIE, flowId, FLOW_COOKIE_TTL_SECONDS));
+	}
+	return res;
+}
+
+async function routeAuthorizeForm(
+	request: Request,
+	env: AuthWorkerEnv,
+	config: WorkerConfig,
+	stub: FlowStub,
+	flowId: string,
+	tenant: Tenant,
+): Promise<Response> {
 	const form = AuthorizeForm.safeParse(await readForm(request));
 	if (!form.success) {
 		return emailFormPage({
