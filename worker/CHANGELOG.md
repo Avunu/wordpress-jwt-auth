@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.0.1](https://github.com/Avunu/wordpress-jwt-auth/compare/jwt-auth-worker-v1.0.0...jwt-auth-worker-v1.0.1) (2026-08-12)
+
+
+### Bug Fixes
+
+* **worker:** keep the flow cookie alive longer than the flow itself ([320fde8](https://github.com/Avunu/wordpress-jwt-auth/commit/320fde85c080ef149eeac4d9fe0e404ba95161fc))
+* **worker:** keep the flow cookie alive longer than the flow itself ([01fb5c3](https://github.com/Avunu/wordpress-jwt-auth/commit/01fb5c33a9ca4fcf8ee921a54375ab9f1bb85210))
+* **worker:** stop the session tests racing the wall clock ([b67a4eb](https://github.com/Avunu/wordpress-jwt-auth/commit/b67a4eb244c698dd6577d0fa81ca1d392e6102cc))
+
 ## [1.0.0](https://github.com/Avunu/wordpress-jwt-auth/compare/jwt-auth-worker-v0.3.0...jwt-auth-worker-v1.0.0) (2026-08-10)
 
 
