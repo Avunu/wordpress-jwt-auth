@@ -40,9 +40,16 @@ final class Validator
     /**
      * Blocks all direct username/password authentication.
      * Hooked at priority 1 — fires before WP's own handlers.
+     *
+     * The `authenticate` filter is seeded with null by wp_authenticate(), and a filter must be able
+     * to hand back whatever it was given. Declaring anything narrower turns the WP-CLI/cron
+     * pass-through below into a fatal TypeError on the very path it exists to keep working.
      */
-    public static function blockDirectAuth(mixed $user, string $username, string $password): \WP_Error|\WP_User
-    {
+    public static function blockDirectAuth(
+        mixed $user,
+        string $username,
+        string $password,
+    ): \WP_Error|\WP_User|null {
         if ((defined('WP_CLI') && WP_CLI) || wp_doing_cron()) {
             return $user;
         }

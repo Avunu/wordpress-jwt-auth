@@ -184,6 +184,32 @@
           installPhase = "touch $out";
         };
 
+        # ------------------------------------------------------------------ #
+        # nix flake check — the plugin's PHPUnit suite. Offline for the same  #
+        # reason as phpstan above: composerDeps carries phpunit and its       #
+        # dependencies from composer.lock, so no network is needed. The tests #
+        # generate real RSA keys, hence the openssl extension in `php`.       #
+        # ------------------------------------------------------------------ #
+        checks.phpunit = stdenvNoCC.mkDerivation {
+          name = "${pname}-phpunit-${version}";
+          inherit src composerDeps;
+
+          nativeBuildInputs = [
+            php
+            php.packages.composer
+            pkgs.c4.composerSetupHook
+          ];
+
+          buildPhase = ''
+            runHook preBuild
+            composer --no-ansi install --no-interaction
+            php vendor/bin/phpunit --no-coverage --colors=never
+            runHook postBuild
+          '';
+
+          installPhase = "touch $out";
+        };
+
         # nix flake check also validates the git-hooks config (sandbox-safe hooks
         # only; the pre-push phpstan/worker hooks are skipped here).
         checks.pre-commit = preCommitCheck;
