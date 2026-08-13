@@ -34,7 +34,7 @@ export interface MintedCode {
 
 export type VerifyResult =
 	| ({ ok: true } & MintedCode)
-	| { ok: false; reason: "not_found" | "expired" | "locked" | "invalid" };
+	| { ok: false; reason: "not_found" | "expired" | "locked" | "invalid" | "already_used" };
 
 export type ConsumeResult =
 	| { ok: true; identity: Identity; codeChallenge: string; clientId: string }
@@ -174,6 +174,16 @@ export class LoginFlow extends DurableObject<AuthWorkerEnv> {
 		if (!r) {
 			return { ok: false, reason: "not_found" };
 		}
+
+		// A completed flow keeps its code and drops both challenges. Presenting the same PIN again is
+		// therefore not a wrong guess — it is the same person submitting twice, whether because they
+		// double-clicked or because they came back to the page after signing in. Answering before the
+		// expiry and attempt checks matters: this must neither be reported as an incorrect code nor
+		// burn one of the five attempts.
+		if (r.code !== null && r.pinHash === null && r.magicHash === null) {
+			return { ok: false, reason: "already_used" };
+		}
+
 		const now = Date.now();
 		if (now > r.createdAt + FLOW_TTL_MS || now > r.pinExpiresAt) {
 			return { ok: false, reason: "expired" };

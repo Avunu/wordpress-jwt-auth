@@ -45,8 +45,13 @@ const STYLE = `
 
 /**
  * Turnstile needs its own origin in script-src/frame-src/connect-src, and injects inline styles.
- * Everything else is locked off: no inline script can run, forms can only post back to us, and the
- * pages cannot be framed.
+ * Everything else is locked off: no inline script can run, and the pages cannot be framed.
+ *
+ * Deliberately no `form-action`. It reads like free defence-in-depth, but Chrome enforces it
+ * against the redirect that _results_ from a form submission — and the last step of a successful
+ * sign-in is exactly that: a PIN is posted here and answered with a 302 to the WordPress site,
+ * cross-origin by definition. `default-src 'none'` plus escaping every interpolated value already
+ * leaves nothing to inject a form with.
  */
 const CSP = [
 	"default-src 'none'",
@@ -55,10 +60,18 @@ const CSP = [
 	`connect-src ${TURNSTILE_ORIGIN}`,
 	"style-src 'unsafe-inline'",
 	"img-src 'self' data: https:",
-	"form-action 'self'",
 	"base-uri 'none'",
 	"frame-ancestors 'none'",
 ].join("; ");
+
+/**
+ * `no-cache` rather than `no-store`: both stop a shared cache serving these pages, but `no-store`
+ * additionally evicts the page from the browser's back/forward cache. That matters here because the
+ * PIN page is where people leave to go and read their email — and coming back to a page that can no
+ * longer be restored is the worst possible moment to lose the flow. The one page that genuinely
+ * must never be written to disk is the magic-link confirmation, which carries the token itself.
+ */
+const CACHE_CONTROL = "private, no-cache, max-age=0, must-revalidate";
 
 const RESPONSE_HEADERS = {
 	"Content-Type": "text/html; charset=utf-8",
@@ -66,7 +79,7 @@ const RESPONSE_HEADERS = {
 	"X-Frame-Options": "DENY",
 	// The magic link carries its token in the query string; never hand that to a third party.
 	"Referrer-Policy": "no-referrer",
-	"Cache-Control": "no-store",
+	"Cache-Control": CACHE_CONTROL,
 } as const;
 
 function page(title: string, inner: string, tenant: Tenant | null): string {
@@ -87,8 +100,11 @@ function page(title: string, inner: string, tenant: Tenant | null): string {
 </html>`;
 }
 
-function htmlResponse(body: string, status = 200): Response {
-	return new Response(body, { status, headers: RESPONSE_HEADERS });
+function htmlResponse(body: string, status = 200, cacheControl?: string): Response {
+	const headers = cacheControl
+		? { ...RESPONSE_HEADERS, "Cache-Control": cacheControl }
+		: RESPONSE_HEADERS;
+	return new Response(body, { status, headers });
 }
 
 export function emailFormPage(opts: {
@@ -201,6 +217,10 @@ export function magicConfirmPage(opts: {
        <p class="muted">Only continue if you started this sign-in.</p>`,
 			opts.tenant,
 		),
+		200,
+		// The only page carrying a live credential in its markup, so this one really must not be
+		// written to disk — worth the lost back/forward cache that the other pages keep.
+		"no-store",
 	);
 }
 

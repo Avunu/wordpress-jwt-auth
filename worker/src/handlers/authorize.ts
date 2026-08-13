@@ -6,7 +6,6 @@ import type { Tenant } from "../tenant";
 import { AuthorizeForm, AuthorizeParams } from "../schemas";
 import {
 	FLOW_COOKIE,
-	clearCookie,
 	clientIp,
 	getCookie,
 	readForm,
@@ -105,14 +104,26 @@ export async function handleAuthorizePost(
 	if (!flowId) {
 		// The two ways to reach "session expired" look identical to the user but mean very different
 		// things: no cookie is a browser/timing problem, a dead flow is a server-side expiry. Log
-		// which one so `wrangler tail` can tell them apart without guesswork.
-		console.log(JSON.stringify({ event: "flow_cookie_missing" }));
+		// which one, plus enough context to tell "the browser sent nothing at all" apart from "the
+		// browser sent cookies but not ours" — the second points at the cookie's name or attributes,
+		// the first at the browser dropping it.
+		console.log(
+			JSON.stringify({
+				event: "flow_cookie_missing",
+				hadAnyCookie: request.headers.has("Cookie"),
+				cookieNames: (request.headers.get("Cookie") ?? "")
+					.split(";")
+					.map((part) => part.split("=")[0]?.trim())
+					.filter(Boolean),
+			}),
+		);
 		return sessionExpired();
 	}
 
 	const stub = getFlowStub(env, flowId);
 	const context = await stub.getContext();
 	if (!context) {
+		// Age separates "expired naturally" from "vanished early", which would mean a bug.
 		console.log(JSON.stringify({ event: "flow_not_found_or_expired" }));
 		return sessionExpired();
 	}
@@ -131,7 +142,7 @@ export async function handleAuthorizePost(
 
 	// Any page that leaves the flow open re-issues the handle, so the browser's copy is refreshed
 	// from the last interaction rather than counting down from the initial page load. A completed
-	// flow redirects (302) and clears the cookie instead — never extend that.
+	// flow answers with a 302 and leaves its cookie untouched, to expire with the flow.
 	if (res.status !== 302) {
 		res.headers.append("Set-Cookie", setCookie(FLOW_COOKIE, flowId, FLOW_COOKIE_TTL_SECONDS));
 	}
@@ -267,6 +278,9 @@ async function verifyCode(
 	}
 
 	switch (result.reason) {
+		case "already_used": {
+			return alreadyUsed(tenant);
+		}
 		case "invalid": {
 			return pinFormPage({
 				tenant,
@@ -336,14 +350,25 @@ export async function completeSignIn(
 	return finishRedirect(minted, cookie ? [cookie] : []);
 }
 
-/** Build the success redirect back to WordPress with code + state. */
+/**
+ * Build the success redirect back to WordPress with code + state.
+ *
+ * The flow cookie is deliberately left in place rather than cleared. Clearing it looked like tidy
+ * hygiene, but a browser applies Set-Cookie from a response whose navigation it then abandons — a
+ * blocked redirect, a back button, a double-click — and the next submit arrives with no handle at
+ * all, which we can only report as "this sign-in session has expired". Nothing had expired; we had
+ * thrown away the one thing that could have told the person they were already signed in.
+ *
+ * Keeping it costs nothing: the flow's code is single-use and already spent, so the id is a handle
+ * to something that can no longer be exchanged for anything. It expires with the flow, and the next
+ * /authorize overwrites it.
+ */
 export function finishRedirect(minted: MintedCode, extraCookies: readonly string[] = []): Response {
 	const target = new URL(minted.redirectUri);
 	target.searchParams.set("code", minted.code);
 	target.searchParams.set("state", minted.state);
 	// Built header-by-header because a Response carries multiple Set-Cookie values only via append.
 	const res = redirect(target.toString());
-	res.headers.append("Set-Cookie", clearCookie(FLOW_COOKIE));
 	for (const cookie of extraCookies) {
 		res.headers.append("Set-Cookie", cookie);
 	}
@@ -355,5 +380,19 @@ function sessionExpired(): Response {
 		title: "Sign-in session expired",
 		message: "This sign-in session has expired. Please return to the site and try again.",
 		status: 400,
+	});
+}
+
+/**
+ * Someone submitting a code that already worked. Almost always a second press of the same button,
+ * so the honest thing to tell them is that it worked the first time — not that their code is
+ * wrong.
+ */
+export function alreadyUsed(tenant: Tenant): Response {
+	return errorPage({
+		title: "You're already signed in",
+		message: `That code has already been used, and the sign-in it belongs to went through. Return to ${tenant.displayName} — you should find yourself signed in.`,
+		status: 200,
+		tenant,
 	});
 }
