@@ -105,14 +105,26 @@ export async function handleAuthorizePost(
 	if (!flowId) {
 		// The two ways to reach "session expired" look identical to the user but mean very different
 		// things: no cookie is a browser/timing problem, a dead flow is a server-side expiry. Log
-		// which one so `wrangler tail` can tell them apart without guesswork.
-		console.log(JSON.stringify({ event: "flow_cookie_missing" }));
+		// which one, plus enough context to tell "the browser sent nothing at all" apart from "the
+		// browser sent cookies but not ours" — the second points at the cookie's name or attributes,
+		// the first at the browser dropping it.
+		console.log(
+			JSON.stringify({
+				event: "flow_cookie_missing",
+				hadAnyCookie: request.headers.has("Cookie"),
+				cookieNames: (request.headers.get("Cookie") ?? "")
+					.split(";")
+					.map((part) => part.split("=")[0]?.trim())
+					.filter(Boolean),
+			}),
+		);
 		return sessionExpired();
 	}
 
 	const stub = getFlowStub(env, flowId);
 	const context = await stub.getContext();
 	if (!context) {
+		// Age separates "expired naturally" from "vanished early", which would mean a bug.
 		console.log(JSON.stringify({ event: "flow_not_found_or_expired" }));
 		return sessionExpired();
 	}

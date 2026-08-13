@@ -114,7 +114,24 @@ describe("GET /authorize — tenant resolution", () => {
 		expect(res.headers.get("Set-Cookie")).toContain("__Host-wp_auth_flow=");
 		// One host now fronts every brand, so the login pages carry their own hardening.
 		expect(res.headers.get("Content-Security-Policy")).toContain("frame-ancestors 'none'");
-		expect(res.headers.get("Cache-Control")).toBe("no-store");
+		expect(res.headers.get("X-Frame-Options")).toBe("DENY");
+	});
+
+	it("keeps the sign-in pages out of shared caches without costing the back/forward cache", async () => {
+		// no-store would evict the page from the bfcache, and the PIN step is precisely where people
+		// leave to go and read their email. no-cache keeps shared caches out without that cost.
+		const res = await get(authorizeUrl({ client_id: "alpha", redirect_uri: ALPHA_REDIRECT }));
+
+		expect(res.headers.get("Cache-Control")).toContain("no-cache");
+		expect(res.headers.get("Cache-Control")).not.toContain("no-store");
+	});
+
+	it("does not restrict form-action, which would block the redirect that ends a sign-in", async () => {
+		// Chrome applies form-action to the redirect *resulting* from a form POST, and a successful
+		// PIN submission is answered with a 302 to the WordPress site — cross-origin by definition.
+		const res = await get(authorizeUrl({ client_id: "alpha", redirect_uri: ALPHA_REDIRECT }));
+
+		expect(res.headers.get("Content-Security-Policy")).not.toContain("form-action");
 	});
 
 	it("re-issues the flow cookie on every step that keeps the flow open", async () => {
