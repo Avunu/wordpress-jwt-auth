@@ -6,7 +6,8 @@
   "packages": {
     ".": {
       "release-type": "php",
-      "extra-files": ["jwt-auth.php"]
+      "extra-files": ["jwt-auth.php"],
+      "exclude-paths": ["worker", ".release-please", ".github"]
     },
     "worker": {
       "release-type": "node",
