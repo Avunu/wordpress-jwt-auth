@@ -1,11 +1,17 @@
 name: Check
 
 # Quality gates on every push and pull request (so Dependabot PRs are gated before
-# auto-merge). Three jobs:
+# auto-merge). Three jobs, each run only when something it actually inspects changed:
 #   • worker  — the worker package's OXC/TypeScript gate (oxfmt + oxlint + type-aware + tsc) + tests
 #   • phpstan — PHP static analysis (level 8, WordPress-aware) via the flake's checks.phpstan
 #   • phpunit — the plugin's test suite via the flake's checks.phpunit
 # The release build (release.yml) is separate.
+#
+# Filtering happens per *job*, via a `changes` job the others depend on, rather than with
+# `on.push.paths` at the workflow level. That distinction matters: a workflow suppressed by a path
+# filter never reports a status at all, so the moment any of these becomes a required check, every
+# PR that does not touch that path waits forever for a status that will never arrive. A job skipped
+# by `if:` still reports, and GitHub counts it as satisfied.
 on:
   push:
     branches:
@@ -13,7 +19,44 @@ on:
   pull_request:
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      worker: ${{ steps.filter.outputs.worker }}
+      php: ${{ steps.filter.outputs.php }}
+    steps:
+      # Full history: on `push` the filter diffs against the previous commit, which a shallow
+      # clone would not have. Pull requests are resolved through the API and need neither.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          # Each list is what that job reads, nothing more. This workflow appears in both so a
+          # change to CI still validates itself against everything it gates.
+          filters: |
+            worker:
+              - 'worker/**'
+              - '.github/workflows/check.yml'
+            php:
+              - 'src/**'
+              - 'tests/**'
+              - 'assets/**'
+              - 'jwt-auth.php'
+              - 'composer.json'
+              - 'composer.lock'
+              - 'phpstan.neon.dist'
+              - 'phpstan-bootstrap.php'
+              - 'phpunit.xml.dist'
+              - 'flake.nix'
+              - 'flake.lock'
+              - '.github/workflows/check.yml'
+
   worker:
+    needs: changes
+    if: ${{ needs.changes.outputs.worker == 'true' }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -34,6 +77,8 @@ jobs:
       - run: npm test
 
   phpstan:
+    needs: changes
+    if: ${{ needs.changes.outputs.php == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -45,6 +90,8 @@ jobs:
       - run: nix build .#checks.x86_64-linux.phpstan -L
 
   phpunit:
+    needs: changes
+    if: ${{ needs.changes.outputs.php == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
