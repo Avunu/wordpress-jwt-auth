@@ -182,7 +182,7 @@ export function emailFormPage(opts: {
        <p class="sub">to ${esc(opts.tenant.displayName)}</p>
        ${err}
        <form data-enhance method="post" action="/authorize" autocomplete="on">
-         <input type="hidden" name="action" value="request_code">
+         <input type="hidden" name="step" value="request_code">
          <label for="email">Email address</label>
          <input id="email" name="email" type="email" required autofocus placeholder="you@example.com" autocomplete="email">
          <div class="cf-turnstile" data-sitekey="${esc(opts.siteKey)}"></div>
@@ -211,14 +211,14 @@ export function pinFormPage(opts: {
        <p class="sub">We emailed a 6-digit code to ${esc(opts.email)}</p>
        ${notice}${err}
        <form data-enhance method="post" action="/authorize" autocomplete="off">
-         <input type="hidden" name="action" value="verify_code">
+         <input type="hidden" name="step" value="verify_code">
          <label for="pin">6-digit code</label>
          <input id="pin" name="pin" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
                 required autofocus autocomplete="one-time-code" placeholder="000000">
          <button type="submit">Sign in</button>
        </form>
        <form data-enhance method="post" action="/authorize" class="alt">
-         <input type="hidden" name="action" value="change_email">
+         <input type="hidden" name="step" value="change_email">
          <button type="submit" class="linkbtn">Use a different email address</button>
        </form>
        <p class="muted">Didn't get it? Check spam, or use the link in the email.</p>`,
@@ -241,11 +241,11 @@ export function continuePage(opts: { tenant: Tenant; email: string }): Screen {
 			`<h1>Sign in to ${esc(opts.tenant.displayName)}</h1>
        <p class="sub">You're signed in as ${esc(opts.email)}</p>
        <form data-enhance method="post" action="/authorize">
-         <input type="hidden" name="action" value="continue_sso">
+         <input type="hidden" name="step" value="continue_sso">
          <button type="submit">Continue</button>
        </form>
        <form data-enhance method="post" action="/authorize" class="alt">
-         <input type="hidden" name="action" value="change_email">
+         <input type="hidden" name="step" value="change_email">
          <button type="submit" class="linkbtn">Use a different email address</button>
        </form>`,
 			opts.tenant,

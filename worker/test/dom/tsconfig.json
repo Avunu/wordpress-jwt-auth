@@ -1,0 +1,12 @@
+{
+	// The client script runs in a browser, so these tests need the DOM lib — which cannot be mixed
+	// with @cloudflare/workers-types, as both declare Request/Response/fetch/FormData as globals.
+	// Same nested-config trick test/integration uses for the cloudflare:test module.
+	"extends": "../../tsconfig.json",
+	"compilerOptions": {
+		"lib": ["es2022", "dom", "dom.iterable"],
+		"types": []
+	},
+	"include": ["./**/*.ts", "../../src/**/*.ts"],
+	"exclude": []
+}

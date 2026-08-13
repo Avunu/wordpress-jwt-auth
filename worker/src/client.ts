@@ -9,6 +9,14 @@
 //
 // It only ever *adds* behaviour. Every form carries a real `action` and `method`, so if this script
 // is blocked, fails to parse, or throws, the browser submits natively and the flow still completes.
+//
+// Two lines here look needlessly awkward and are not. HTMLFormElement is [LegacyOverrideBuiltIns],
+// so a form control whose name collides with a form property *replaces* that property: with an
+// `<input name="action">` present, `form.action` evaluates to the input rather than the URL, and
+// fetch stringifies it to "[object HTMLInputElement]". That shipped once and took the sign-in page
+// down. Reading the attribute and calling submit through the prototype makes the client immune to
+// whatever the markup happens to name its fields — note that neither jsdom nor happy-dom implements
+// this shadowing, so no DOM emulator will warn you.
 
 /** Header the client sends so the worker knows to answer with a card instead of a whole document. */
 export const PARTIAL_HEADER = "X-Partial";
@@ -30,12 +38,13 @@ document.addEventListener("submit",async(event)=>{
 const form=event.target.closest("form[data-enhance]");
 if(!form)return;
 const card=document.querySelector("#card");
-if(!card)return;
+const url=form.getAttribute("action");
+if(!card||!url)return;
 event.preventDefault();
 const submitter=event.submitter;
 if(submitter)submitter.disabled=true;
 try{
-const res=await fetch(form.action,{
+const res=await fetch(url,{
 method:"POST",
 body:new FormData(form,submitter),
 headers:{"${PARTIAL_HEADER}":"1"}
@@ -46,7 +55,7 @@ card.outerHTML=await res.text();
 widgets();
 }catch{
 if(submitter)submitter.disabled=false;
-form.submit();
+HTMLFormElement.prototype.submit.call(form);
 }
 });
 })();`;
@@ -56,4 +65,4 @@ form.submit();
  * synchronously and crypto.subtle is not; test/unit/client.test.ts recomputes it and fails if the
  * two ever drift, which is the only way this can go wrong.
  */
-export const CLIENT_SOURCE_HASH = "sha256-MtAq618Edzj+BTIAKQgAHVDF39SdTbSAfjzsoXXJqmc=";
+export const CLIENT_SOURCE_HASH = "sha256-2McH8Tes+VzQpZNvtGt3avohzJl3OagrF27nAHnIn7g=";

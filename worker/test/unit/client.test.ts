@@ -34,6 +34,18 @@ describe("client script integrity", () => {
 
 	it("falls back to a native submit rather than trapping the user", () => {
 		// If fetch throws — offline, blocked, DNS — the browser must still be able to post the form.
-		expect(CLIENT_SOURCE).toContain("form.submit()");
+		// Called through the prototype so a control named "submit" cannot shadow the escape hatch.
+		expect(CLIENT_SOURCE).toContain("HTMLFormElement.prototype.submit.call(form)");
+	});
+
+	it("never reads a form property a control could shadow", () => {
+		// HTMLFormElement is [LegacyOverrideBuiltIns], so `form.action` with an `<input name=action>`
+		// present is the *input*, which fetch stringifies to "[object HTMLInputElement]". That shipped
+		// and took sign-in down. test/dom/client.test.ts proves the behaviour; this pins the shape, and
+		// is the cheaper of the two to keep passing for the right reason.
+		for (const shadowable of ["form.action", "form.method", "form.submit(", "form.target"]) {
+			expect(CLIENT_SOURCE).not.toContain(shadowable);
+		}
+		expect(CLIENT_SOURCE).toContain('form.getAttribute("action")');
 	});
 });

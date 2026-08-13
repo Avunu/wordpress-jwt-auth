@@ -32,14 +32,15 @@
 		"lint:typecheck": "oxlint --type-aware -c .oxlintrc.typecheck.json .",
 		"format": "oxfmt .",
 		"format:check": "oxfmt --check .",
-		"check": "npm run format:check && npm run lint && npm run lint:typecheck && npm run typecheck && npm run typecheck:integration",
+		"check": "npm run format:check && npm run lint && npm run lint:typecheck && npm run typecheck && npm run typecheck:integration && npm run typecheck:dom",
 		"dev": "wrangler dev",
 		"types": "wrangler types",
 		"test": "vitest run -c vitest.config.ts && vitest run -c vitest.integration.config.ts",
 		"test:unit": "vitest run -c vitest.config.ts",
 		"test:integration": "vitest run -c vitest.integration.config.ts",
 		"prepublishOnly": "npm run build",
-		"upgrade": "npx npm-check-updates -u && npm install && npm audit fix"
+		"upgrade": "npx npm-check-updates -u && npm install && npm audit fix",
+		"typecheck:dom": "tsc -p test/dom/tsconfig.json --noEmit"
 	},
 	"dependencies": {
 		"jose": "6.2.8",
@@ -48,6 +49,7 @@
 	"devDependencies": {
 		"@cloudflare/vitest-pool-workers": "^0.21.2",
 		"@cloudflare/workers-types": "^5.20260812.1",
+		"jsdom": "^30.0.1",
 		"oxfmt": "^0.63.0",
 		"oxlint": "^1.78.0",
 		"oxlint-tsgolint": "^7.0.2001",

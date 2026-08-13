@@ -6,7 +6,7 @@ import { defineConfig } from "vitest/config";
 // @cloudflare/vitest-pool-workers instead.
 export default defineConfig({
 	test: {
-		include: ["test/unit/**/*.test.ts"],
+		include: ["test/unit/**/*.test.ts", "test/dom/**/*.test.ts"],
 		environment: "node",
 	},
 });

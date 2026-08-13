@@ -180,7 +180,7 @@ describe("GET /authorize — tenant resolution", () => {
 		const [flowCookie] = setCookie.split(";");
 		const stepped = await postForm(
 			`${ISSUER}/authorize`,
-			{ action: "change_email" },
+			{ step: "change_email" },
 			flowCookie ?? "",
 		);
 		expect(stepped.status).toBe(200);
@@ -280,7 +280,7 @@ describe("enhanced (fetch) submissions", () => {
 
 		const res = await postPartial(
 			`${ISSUER}/authorize`,
-			{ action: "verify_code", pin: "424242" },
+			{ step: "verify_code", pin: "424242" },
 			cookie,
 		);
 
@@ -300,7 +300,7 @@ describe("enhanced (fetch) submissions", () => {
 
 		const res = await postForm(
 			`${ISSUER}/authorize`,
-			{ action: "verify_code", pin: "515151" },
+			{ step: "verify_code", pin: "515151" },
 			cookie,
 		);
 
@@ -314,7 +314,7 @@ describe("enhanced (fetch) submissions", () => {
 
 		const res = await postPartial(
 			`${ISSUER}/authorize`,
-			{ action: "verify_code", pin: "000000" },
+			{ step: "verify_code", pin: "000000" },
 			cookie,
 		);
 
@@ -331,7 +331,7 @@ describe("enhanced (fetch) submissions", () => {
 
 		const res = await postForm(
 			`${ISSUER}/authorize`,
-			{ action: "verify_code", pin: "000000" },
+			{ step: "verify_code", pin: "000000" },
 			cookie,
 		);
 
@@ -392,7 +392,7 @@ describe("submitting a code twice", () => {
 
 		const res = await postForm(
 			`${ISSUER}/authorize`,
-			{ action: "verify_code", pin: "135790" },
+			{ step: "verify_code", pin: "135790" },
 			`__Host-wp_auth_flow=${flowId}`,
 		);
 
@@ -442,7 +442,7 @@ describe("cross-site SSO", () => {
 
 		const confirmed = await postForm(
 			`${ISSUER}/authorize`,
-			{ action: "continue_sso" },
+			{ step: "continue_sso" },
 			`${cookie}; ${flowCookie}`,
 		);
 		expect(confirmed.status).toBe(302);

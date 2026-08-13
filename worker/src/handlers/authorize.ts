@@ -175,7 +175,7 @@ async function routeAuthorizeForm(
 		);
 	}
 
-	switch (form.data.action) {
+	switch (form.data.step) {
 		case "request_code": {
 			return requestCode(
 				env,

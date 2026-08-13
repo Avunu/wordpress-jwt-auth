@@ -21,29 +21,36 @@ export type AuthorizeParams = z.infer<typeof AuthorizeParams>;
 /** Email address, normalised to lowercase + trimmed. */
 export const EmailField = z.string().trim().toLowerCase().pipe(z.email().max(254));
 
-/** POST /authorize body — action-tagged union. */
+/**
+ * POST /authorize body — step-tagged union.
+ *
+ * The tag is `step`, not `action`, and that is deliberate. HTMLFormElement is
+ * [LegacyOverrideBuiltIns]: a control named `action` replaces `form.action`, so a hidden `<input
+ * name="action">` turns the form's own URL into an HTMLInputElement. Naming the tag after a form
+ * property is a trap for any script that touches these forms, and it caught us once already.
+ */
 export const RequestCodeForm = z.object({
-	action: z.literal("request_code"),
+	step: z.literal("request_code"),
 	email: EmailField,
 	"cf-turnstile-response": z.string().min(1).max(2048),
 });
 
 export const VerifyCodeForm = z.object({
-	action: z.literal("verify_code"),
+	step: z.literal("verify_code"),
 	pin: z.string().regex(/^\d{6}$/),
 });
 
 /** Return to the email step for the same flow — no other fields. */
 export const ChangeEmailForm = z.object({
-	action: z.literal("change_email"),
+	step: z.literal("change_email"),
 });
 
 /** Accept the SSO session's identity for a site this browser hasn't signed into before. */
 export const ContinueSsoForm = z.object({
-	action: z.literal("continue_sso"),
+	step: z.literal("continue_sso"),
 });
 
-export const AuthorizeForm = z.discriminatedUnion("action", [
+export const AuthorizeForm = z.discriminatedUnion("step", [
 	RequestCodeForm,
 	VerifyCodeForm,
 	ChangeEmailForm,
