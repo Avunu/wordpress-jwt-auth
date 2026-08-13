@@ -4,7 +4,7 @@ import { getFlowStub } from "../lib/flow";
 import { hashSecret } from "../lib/otp";
 import { readForm } from "../lib/http";
 import { magicConfirmPage, errorPage } from "../ui";
-import { completeSignIn } from "./authorize";
+import { alreadyUsed, completeSignIn } from "./authorize";
 
 /**
  * GET /magic — render the confirm page ONLY. It never consumes the token, so an email security
@@ -74,6 +74,11 @@ export async function handleMagicPost(
 	}
 
 	switch (result.reason) {
+		case "already_used": {
+			// Clicking the link a second time, or a mail client that pre-fetched and then the human
+			// clicked. The sign-in already happened; say so instead of implying the link is broken.
+			return alreadyUsed(tenant);
+		}
 		case "expired": {
 			return errorPage({
 				title: "Link expired",

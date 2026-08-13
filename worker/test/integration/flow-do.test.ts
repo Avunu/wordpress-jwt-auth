@@ -116,6 +116,38 @@ describe("LoginFlow Durable Object", () => {
 		expect(good.code.startsWith(`${flowId}.`)).toBe(true);
 	});
 
+	it("reports a re-submitted PIN as already used, not as a wrong guess", async () => {
+		// Pressing "Sign in" twice must not read as an incorrect code, and must not spend one of the
+		// five attempts — two more double-clicks would otherwise lock a perfectly good sign-in out.
+		const flowId = "flow-reuse";
+		const stub = stubFor(flowId);
+		await stub.create(context());
+		const pinHash = await hashSecret("246810", flowId);
+		await stub.setChallenge("user@example.com", pinHash, await hashSecret("tok", flowId));
+
+		const completed = await stub.verifyPin(pinHash);
+		expect(completed.ok).toBe(true);
+
+		expect(await stub.verifyPin(pinHash)).toEqual({ ok: false, reason: "already_used" });
+		// A wrong PIN after completion is the same situation — the flow is simply done.
+		expect(await stub.verifyPin(await hashSecret("000000", flowId))).toEqual({
+			ok: false,
+			reason: "already_used",
+		});
+	});
+
+	it("reports a re-clicked magic link as already used", async () => {
+		const flowId = "flow-reuse-magic";
+		const stub = stubFor(flowId);
+		await stub.create(context());
+		const magicHash = await hashSecret("magic-secret-token", flowId);
+		await stub.setChallenge("user@example.com", await hashSecret("111111", flowId), magicHash);
+
+		const completed = await stub.verifyMagic(magicHash);
+		expect(completed.ok).toBe(true);
+		expect(await stub.verifyMagic(magicHash)).toEqual({ ok: false, reason: "already_used" });
+	});
+
 	it("returns not_found for an unknown flow", async () => {
 		const stub = stubFor("flow-never-created");
 		expect(await stub.getContext()).toBeNull();

@@ -6,7 +6,6 @@ import type { Tenant } from "../tenant";
 import { AuthorizeForm, AuthorizeParams } from "../schemas";
 import {
 	FLOW_COOKIE,
-	clearCookie,
 	clientIp,
 	getCookie,
 	readForm,
@@ -143,7 +142,7 @@ export async function handleAuthorizePost(
 
 	// Any page that leaves the flow open re-issues the handle, so the browser's copy is refreshed
 	// from the last interaction rather than counting down from the initial page load. A completed
-	// flow redirects (302) and clears the cookie instead — never extend that.
+	// flow answers with a 302 and leaves its cookie untouched, to expire with the flow.
 	if (res.status !== 302) {
 		res.headers.append("Set-Cookie", setCookie(FLOW_COOKIE, flowId, FLOW_COOKIE_TTL_SECONDS));
 	}
@@ -279,6 +278,9 @@ async function verifyCode(
 	}
 
 	switch (result.reason) {
+		case "already_used": {
+			return alreadyUsed(tenant);
+		}
 		case "invalid": {
 			return pinFormPage({
 				tenant,
@@ -348,14 +350,25 @@ export async function completeSignIn(
 	return finishRedirect(minted, cookie ? [cookie] : []);
 }
 
-/** Build the success redirect back to WordPress with code + state. */
+/**
+ * Build the success redirect back to WordPress with code + state.
+ *
+ * The flow cookie is deliberately left in place rather than cleared. Clearing it looked like tidy
+ * hygiene, but a browser applies Set-Cookie from a response whose navigation it then abandons — a
+ * blocked redirect, a back button, a double-click — and the next submit arrives with no handle at
+ * all, which we can only report as "this sign-in session has expired". Nothing had expired; we had
+ * thrown away the one thing that could have told the person they were already signed in.
+ *
+ * Keeping it costs nothing: the flow's code is single-use and already spent, so the id is a handle
+ * to something that can no longer be exchanged for anything. It expires with the flow, and the next
+ * /authorize overwrites it.
+ */
 export function finishRedirect(minted: MintedCode, extraCookies: readonly string[] = []): Response {
 	const target = new URL(minted.redirectUri);
 	target.searchParams.set("code", minted.code);
 	target.searchParams.set("state", minted.state);
 	// Built header-by-header because a Response carries multiple Set-Cookie values only via append.
 	const res = redirect(target.toString());
-	res.headers.append("Set-Cookie", clearCookie(FLOW_COOKIE));
 	for (const cookie of extraCookies) {
 		res.headers.append("Set-Cookie", cookie);
 	}
@@ -367,5 +380,19 @@ function sessionExpired(): Response {
 		title: "Sign-in session expired",
 		message: "This sign-in session has expired. Please return to the site and try again.",
 		status: 400,
+	});
+}
+
+/**
+ * Someone submitting a code that already worked. Almost always a second press of the same button,
+ * so the honest thing to tell them is that it worked the first time — not that their code is
+ * wrong.
+ */
+export function alreadyUsed(tenant: Tenant): Response {
+	return errorPage({
+		title: "You're already signed in",
+		message: `That code has already been used, and the sign-in it belongs to went through. Return to ${tenant.displayName} — you should find yourself signed in.`,
+		status: 200,
+		tenant,
 	});
 }

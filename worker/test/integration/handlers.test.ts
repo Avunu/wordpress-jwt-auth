@@ -5,6 +5,7 @@ import type { JSONWebKeySet } from "jose";
 import type { LoginFlow } from "../../src/flow-do";
 import type { UserSession } from "../../src/session-do";
 import type { FlowContext } from "../../src/schemas";
+import { hashSecret } from "../../src/lib/otp";
 import {
 	ALPHA_REDIRECT,
 	BETA_REDIRECT,
@@ -239,6 +240,48 @@ describe("POST /token — code ownership", () => {
 		// The failed PKCE attempt still consumed the code; a correct verifier can't rescue it.
 		const replay = await postForm(`${ISSUER}/token`, tokenBody(code, "alpha", ALPHA_REDIRECT));
 		expect(replay.status).toBe(400);
+	});
+});
+
+describe("submitting a code twice", () => {
+	it("keeps the flow handle on success, so a second submit can be explained", async () => {
+		// The bug this replaces: the success redirect also cleared the flow cookie. A browser applies
+		// Set-Cookie even from a response whose navigation it abandons, so the second press arrived
+		// with no handle and got "this sign-in session has expired" — when in fact the sign-in had
+		// just succeeded.
+		const cookie = await startSessionCookie("reuse-cookie", "alpha");
+		const res = await get(
+			authorizeUrl({ client_id: "alpha", redirect_uri: ALPHA_REDIRECT }),
+			cookie,
+		);
+
+		expect(res.status).toBe(302);
+		const setCookie = res.headers.get("Set-Cookie") ?? "";
+		expect(setCookie).not.toMatch(/__Host-wp_auth_flow=;/);
+		expect(setCookie).not.toMatch(/__Host-wp_auth_flow=[^;]*Max-Age=0/);
+	});
+
+	it("tells a repeat submitter they are already signed in", async () => {
+		// Drive a real flow to completion through the DO, then re-submit against the live handler.
+		const flowId = "reuse-handler";
+		const stub = flowStub(flowId);
+		await stub.create(context("alpha", ALPHA_REDIRECT));
+		const pinHash = await hashSecret("135790", flowId);
+		await stub.setChallenge(EMAIL, pinHash, await hashSecret("tok", flowId));
+		const completed = await stub.verifyPin(pinHash);
+		expect(completed.ok).toBe(true);
+
+		const res = await postForm(
+			`${ISSUER}/authorize`,
+			{ action: "verify_code", pin: "135790" },
+			`__Host-wp_auth_flow=${flowId}`,
+		);
+
+		const html = await res.text();
+		expect(html).toContain("already signed in");
+		expect(html).toContain("Alpha Site");
+		expect(html).not.toContain("session has expired");
+		expect(html).not.toContain("incorrect");
 	});
 });
 
