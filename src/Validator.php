@@ -89,6 +89,15 @@ final class Validator
         }
 
         $user = UserManager::findOrCreate($claims);
+        if ($user === null) {
+            // Unknown person, registration closed. This hook runs on every unauthenticated request,
+            // so failing loudly would take the public site down for them too. Stay anonymous, and
+            // only explain on the requests whose whole purpose is getting signed in.
+            if (Registration::isSignInRequest()) {
+                Registration::deny();
+            }
+            return;
+        }
 
         wp_clear_auth_cookie();
         wp_set_current_user($user->ID);

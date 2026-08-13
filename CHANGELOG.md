@@ -1,5 +1,22 @@
 # Changelog
 
+## [3.0.0](https://github.com/Avunu/wordpress-jwt-auth/compare/v2.1.0...v3.0.0) (2026-08-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* WordPress ships "Anyone can register" unticked and earlier versions of the plugin ignored it, so a site relying on just-in-time provisioning must tick Settings > General > Membership before or immediately after updating, or new visitors will be turned away.
+
+### Features
+
+* let a site stop creating accounts for new users ([800b25f](https://github.com/Avunu/wordpress-jwt-auth/commit/800b25f0eda9e6bf7aa89010876cf29c2b8b522e))
+
+
+### Miscellaneous Chores
+
+* **main:** release jwt-auth-worker 1.0.2 ([5bb2907](https://github.com/Avunu/wordpress-jwt-auth/commit/5bb2907ec1176246cb648575ea2afaa5b6c9edc6))
+* **main:** release jwt-auth-worker 1.0.2 ([a3bf45e](https://github.com/Avunu/wordpress-jwt-auth/commit/a3bf45e5b1008306a667f334b9448c0cbf964a8d))
+
 ## [2.1.0](https://github.com/Avunu/wordpress-jwt-auth/compare/v2.0.0...v2.1.0) (2026-08-12)
 
 

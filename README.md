@@ -107,7 +107,7 @@ define('JWT_AUTH_CLIENT_ID',     'yoursite');                  // this site's te
 define('JWT_AUTH_CLIENT_SECRET', ''); // PKCE-only public client (recommended)
 ```
 
-New visitors who prove ownership of an email address get a `subscriber` account created automatically.
+New visitors who prove ownership of an email address get a `subscriber` account created automatically, as long as the site is [accepting registrations](#turning-account-creation-off).
 
 One worker can serve many sites from a single issuer. Each site is a **tenant** identified by its `JWT_AUTH_CLIENT_ID`, which the worker uses as the token's `aud` claim — so give every site a distinct value, since the audience check below is what keeps one site's tokens from being accepted by another. A multi-tenant worker also offers cross-site single sign-on: verifying a PIN at one site signs the user in at the others (with a confirmation the first time they reach each new one).
 
@@ -145,14 +145,14 @@ The worker's source lives in [`worker/`](worker/) and is published to GitHub Pac
 2.  The plugin generates a random `state` and a PKCE `code_challenge` (S256), stored server-side in WordPress transients. Nothing is written to cookies or the URL.
 3.  After the user authenticates, the provider redirects to `https://yoursite.com/?jwt_auth_callback=1&code=…&state=…`.
 4.  The plugin validates the state, exchanges the code for tokens at the provider's token endpoint, and validates the `id_token` JWT against the provider's JWKS.
-5.  A WordPress user is found (by `sub` meta, then email) or created with the configured default role.
+5.  A WordPress user is found (by `sub` meta, then email) or, if the site is [accepting registrations](#turning-account-creation-off), created with the configured default role.
 6.  A standard WordPress auth cookie is set and the user is redirected to their original destination.
 
 ### Authentication flow (proxy mode)
 
 1.  The upstream proxy authenticates the user and injects a signed JWT into every request.
 2.  On each unauthenticated WordPress request, the plugin reads the JWT from the configured cookie, header, or `Authorization: Bearer`.
-3.  If the JWT is valid and the audience matches, the user is found or created and a WordPress session is established for the current and all future requests.
+3.  If the JWT is valid and the audience matches, the user is found — or created, if the site is [accepting registrations](#turning-account-creation-off) — and a WordPress session is established for the current and all future requests.
 
 ### User creation
 
@@ -163,6 +163,22 @@ New users are created with:
 -   The provider's `sub` claim stored in user meta as `jwt_auth_sub`.
 
 On every subsequent login, the user's first name, last name, display name, and email are synced from the JWT claims. The `sub` meta is used for lookups first, so email changes at the provider are handled gracefully.
+
+### Turning account creation off
+
+Account creation follows WordPress's own **Settings → General → Membership → "Anyone can register"** (`users_can_register`). There is no separate constant. Untick it and the plugin stops minting accounts for people the provider vouches for.
+
+> **Upgrading to 3.0.0:** WordPress ships this box **unticked**, and earlier versions of the plugin ignored it. If your site relies on just-in-time provisioning, tick it before or immediately after updating, or new visitors will be turned away.
+
+What still works with the box unticked:
+
+-   Everyone who already has a WordPress account signs in as usual.
+-   A pre-existing account is still adopted on its owner's first federated login — matching an account the site already chose to create is a link, not a signup.
+
+What a turned-away visitor sees:
+
+-   **OIDC mode** — the plugin bounces them through the provider's `end_session_endpoint` and back to `/?jwt_auth_denied=1`, which renders a 403 notice. Ending the provider session matters: otherwise the next attempt silently replays the same rejected identity with no chance to choose a different account. If the provider advertises no end-session endpoint (or `JWT_AUTH_LOGOUT_URL` is set, which the plugin cannot append a return URL to), the notice is shown immediately instead, with a sign-out link when one is configured.
+-   **Proxy mode** — they browse the public site anonymously, because the plugin validates a token on *every* unauthenticated request and an error page there would lock them out of pages they are allowed to read. The 403 notice appears on `wp-admin` and `wp-login.php`, the requests that exist to get somebody signed in. Ajax, cron, and WP-CLI are exempt.
 
 ### Direct login is blocked
 
