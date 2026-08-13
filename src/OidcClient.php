@@ -133,6 +133,10 @@ final class OidcClient
 
         // Establish WordPress session
         $user = UserManager::findOrCreate($claims);
+        if ($user === null) {
+            self::denyRegistration();
+        }
+
         wp_clear_auth_cookie();
         wp_set_current_user($user->ID);
         wp_set_auth_cookie($user->ID, remember: true);
@@ -143,26 +147,74 @@ final class OidcClient
     }
 
     // -------------------------------------------------------------------------
+    // Registration closed
+    // -------------------------------------------------------------------------
+
+    /**
+     * The provider authenticated someone this site will not create an account for.
+     *
+     * Prefer the round trip through the provider's end-session endpoint: ending its session means
+     * the next attempt lands on an account chooser instead of silently replaying the same rejected
+     * identity, and post_logout_redirect_uri brings the browser back here to be told why. A custom
+     * JWT_AUTH_LOGOUT_URL cannot promise that return trip, so fall through and show the notice now
+     * — Registration::deny() offers sign-out as a link instead.
+     */
+    private static function denyRegistration(): never
+    {
+        // No session was established, but a stale cookie from a previous identity must not survive
+        // a sign-in the site just refused.
+        wp_clear_auth_cookie();
+
+        $logoutUrl = self::endSessionUrl(add_query_arg('jwt_auth_denied', '1', home_url('/')));
+        if ($logoutUrl !== null) {
+            wp_redirect($logoutUrl);
+            exit;
+        }
+
+        Registration::deny();
+    }
+
+    /** Renders the notice after the provider bounces a denied sign-in back to us. */
+    public static function handleDeniedReturn(): void
+    {
+        if (($_GET['jwt_auth_denied'] ?? '') !== '1') return;
+
+        // The refused visitor arrives here signed out, since denyRegistration() cleared the cookie
+        // before the bounce. Anyone reaching this URL with a session is a member following a stale
+        // link, and telling them the site is closed to new accounts would only confuse them.
+        if (is_user_logged_in()) return;
+
+        Registration::deny();
+    }
+
+    // -------------------------------------------------------------------------
     // wp_logout hook
     // -------------------------------------------------------------------------
 
     public static function handleLogout(): void
     {
-        $logoutUrl = Config::logoutUrl();
+        // A configured JWT_AUTH_LOGOUT_URL is used verbatim: it may already carry the query string
+        // the provider expects, and appending a post_logout_redirect_uri the provider has not
+        // registered turns a working sign-out into an error page.
+        $logoutUrl = Config::logoutUrl() ?? self::endSessionUrl(home_url('/'));
 
-        if ($logoutUrl === null && Config::issuer() !== '') {
-            $endpoint = self::tryDiscover()['end_session_endpoint'] ?? null;
-            if ($endpoint) {
-                $logoutUrl = $endpoint . '?' . http_build_query([
-                    'post_logout_redirect_uri' => home_url('/'),
-                ]);
-            }
-        }
-
-        if ($logoutUrl) {
+        if ($logoutUrl !== null) {
             wp_redirect($logoutUrl);
             exit;
         }
+    }
+
+    /** Discovered end-session URL returning the browser to $returnTo, or null if there is none. */
+    private static function endSessionUrl(string $returnTo): ?string
+    {
+        if (Config::issuer() === '') return null;
+
+        $endpoint = self::tryDiscover()['end_session_endpoint'] ?? null;
+        if (!is_string($endpoint) || $endpoint === '') return null;
+
+        return $endpoint . '?' . http_build_query([
+            'post_logout_redirect_uri' => $returnTo,
+        ]);
     }
 
     // -------------------------------------------------------------------------

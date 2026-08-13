@@ -343,6 +343,85 @@ final class OidcClientTest extends WordPressTestCase
     }
 
     // ---------------------------------------------------------------------
+    // Registration closed
+    // ---------------------------------------------------------------------
+
+    public function test_a_refused_signin_ends_the_provider_session_and_comes_back_to_the_notice(): void
+    {
+        // Without the round trip the provider would keep the session and the next attempt would
+        // silently replay the same rejected identity, with no way to pick a different account.
+        WpState::$usersCanRegister = false;
+
+        $redirect = $this->completeLogin();
+
+        $this->assertFalse($redirect->safe, 'the bounce leaves the site, so not wp_safe_redirect');
+        $this->assertStringStartsWith(self::ISSUER . '/logout', $redirect->location);
+        $this->assertSame(
+            'https://example.test/?jwt_auth_denied=1',
+            $redirect->query()['post_logout_redirect_uri'],
+        );
+
+        $this->assertSame([], WpState::$users, 'no account may be created');
+        $this->assertSame([], WpState::$authCookies, 'and no session established');
+        $this->assertTrue(WpState::$authCookieCleared, 'a stale cookie must not survive the refusal');
+    }
+
+    public function test_a_refused_signin_shows_the_notice_when_the_provider_cannot_be_signed_out_of(): void
+    {
+        WpState::$usersCanRegister = false;
+        $this->registerDiscovery(['end_session_endpoint' => null]);
+
+        try {
+            $this->completeLogin();
+            $this->fail('expected the sign-in to be refused');
+        } catch (WpDieException $died) {
+            $this->assertSame(403, $died->status());
+            $this->assertStringContainsString('not accepting new accounts', $died->body);
+        }
+
+        $this->assertSame([], WpState::$users);
+        $this->assertSame([], WpState::$authCookies);
+    }
+
+    public function test_the_return_from_the_provider_renders_the_notice(): void
+    {
+        $_GET = ['jwt_auth_denied' => '1'];
+
+        $this->expectException(WpDieException::class);
+        $this->expectExceptionMessage('not accepting new accounts');
+        OidcClient::handleDeniedReturn();
+    }
+
+    public function test_ordinary_requests_pass_the_notice_handler_untouched(): void
+    {
+        $_GET = [];
+        OidcClient::handleDeniedReturn();
+
+        $this->addToAssertionCount(1);
+    }
+
+    public function test_a_member_following_a_stale_denial_link_is_not_shown_the_notice(): void
+    {
+        $_GET = ['jwt_auth_denied' => '1'];
+        WpState::$loggedIn = true;
+
+        OidcClient::handleDeniedReturn();
+
+        $this->addToAssertionCount(1);
+    }
+
+    public function test_an_existing_user_still_signs_in_when_registration_is_closed(): void
+    {
+        WpState::$usersCanRegister = false;
+        WpState::addUser('user@example.test', 'pin:abc123');
+
+        $redirect = $this->completeLogin();
+
+        $this->assertTrue($redirect->safe);
+        $this->assertCount(1, WpState::$authCookies);
+    }
+
+    // ---------------------------------------------------------------------
     // Discovery and logout
     // ---------------------------------------------------------------------
 

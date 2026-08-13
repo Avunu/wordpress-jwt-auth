@@ -26,3 +26,8 @@ define('JWT_AUTH_CLIENT_ID', 'testclient');
 //   JWT_AUTH_REDIRECT       -> '/'
 //   JWT_AUTH_PROVIDER_NAME  -> 'SSO'
 //   JWT_AUTH_LOGOUT_URL     -> null (end_session_endpoint from discovery)
+//
+// One consequence worth naming: leaving JWT_AUTH_LOGOUT_URL undefined means the "Sign out of
+// {Provider}" link Registration::deny() appends when it *is* defined goes uncovered. Defining it
+// here to reach that branch would change what handleLogout() does in every other test, which is a
+// worse trade than the gap.
