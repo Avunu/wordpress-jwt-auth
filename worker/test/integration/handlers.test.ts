@@ -6,6 +6,7 @@ import type { LoginFlow } from "../../src/flow-do";
 import type { UserSession } from "../../src/session-do";
 import type { FlowContext } from "../../src/schemas";
 import { hashSecret } from "../../src/lib/otp";
+import { CLIENT_SOURCE_HASH } from "../../src/client";
 import {
 	ALPHA_REDIRECT,
 	BETA_REDIRECT,
@@ -53,6 +54,33 @@ function postForm(url: string, body: Record<string, string>, cookie?: string): P
 		},
 		body: new URLSearchParams(body).toString(),
 	});
+}
+
+/** The same post, but as the enhanced client makes it. */
+function postPartial(
+	url: string,
+	body: Record<string, string>,
+	cookie?: string,
+): Promise<Response> {
+	return exports.default.fetch(url, {
+		method: "POST",
+		redirect: "manual",
+		headers: {
+			"Content-Type": "application/x-www-form-urlencoded",
+			"X-Partial": "1",
+			...(cookie ? { Cookie: cookie } : {}),
+		},
+		body: new URLSearchParams(body).toString(),
+	});
+}
+
+/** Drive a flow to the point where the next correct PIN completes it. */
+async function armedFlow(flowId: string, pin: string, clientId = "alpha"): Promise<string> {
+	const stub = flowStub(flowId);
+	const redirectUri = clientId === "alpha" ? ALPHA_REDIRECT : BETA_REDIRECT;
+	await stub.create(context(clientId, redirectUri));
+	await stub.setChallenge(EMAIL, await hashSecret(pin, flowId), await hashSecret("tok", flowId));
+	return `__Host-wp_auth_flow=${flowId}`;
 }
 
 function flowStub(flowId: string): DurableObjectStub<LoginFlow> {
@@ -240,6 +268,97 @@ describe("POST /token — code ownership", () => {
 		// The failed PKCE attempt still consumed the code; a correct verifier can't rescue it.
 		const replay = await postForm(`${ISSUER}/token`, tokenBody(code, "alpha", ALPHA_REDIRECT));
 		expect(replay.status).toBe(400);
+	});
+});
+
+describe("enhanced (fetch) submissions", () => {
+	it("answers a completed sign-in with 200 + a redirect header, never a 302", async () => {
+		// The whole point. fetch() follows a 302 transparently, so a redirecting response would hand
+		// the client the WordPress page's HTML to swap into the card. The header instead lets the
+		// client navigate itself — a script navigation, which form-action does not govern.
+		const cookie = await armedFlow("partial-success", "424242");
+
+		const res = await postPartial(
+			`${ISSUER}/authorize`,
+			{ action: "verify_code", pin: "424242" },
+			cookie,
+		);
+
+		expect(res.status).toBe(200);
+		expect(res.headers.get("Location")).toBeNull();
+		const to = new URL(res.headers.get("X-Auth-Redirect") ?? "");
+		expect(to.origin + to.pathname).toBe("https://alpha.test/");
+		expect(to.searchParams.get("code")).toBeTruthy();
+		expect(to.searchParams.get("state")).toBe("wp-state-123");
+		// The SSO session still starts — the enhanced path must not lose it.
+		expect(res.headers.get("Set-Cookie")).toContain("__Host-sso=");
+	});
+
+	it("still answers a plain browser with a 302", async () => {
+		// Same request, no X-Partial: the no-JS path is unchanged.
+		const cookie = await armedFlow("plain-success", "515151");
+
+		const res = await postForm(
+			`${ISSUER}/authorize`,
+			{ action: "verify_code", pin: "515151" },
+			cookie,
+		);
+
+		expect(res.status).toBe(302);
+		expect(res.headers.get("X-Auth-Redirect")).toBeNull();
+		expect(res.headers.get("Location")).toContain("https://alpha.test/");
+	});
+
+	it("returns a bare card, not a document, and keeps the status", async () => {
+		const cookie = await armedFlow("partial-error", "616161");
+
+		const res = await postPartial(
+			`${ISSUER}/authorize`,
+			{ action: "verify_code", pin: "000000" },
+			cookie,
+		);
+
+		expect(res.status).toBe(401);
+		const html = await res.text();
+		expect(html).not.toContain("<html");
+		expect(html).not.toContain("<!doctype");
+		expect(html.trimStart().startsWith('<div class="card" id="card"')).toBe(true);
+		expect(html).toContain("That code is incorrect");
+	});
+
+	it("serves the same card inside a document for a plain browser", async () => {
+		const cookie = await armedFlow("plain-error", "717171");
+
+		const res = await postForm(
+			`${ISSUER}/authorize`,
+			{ action: "verify_code", pin: "000000" },
+			cookie,
+		);
+
+		expect(res.status).toBe(401);
+		const html = await res.text();
+		expect(html).toContain("<!doctype html>");
+		expect(html).toContain('<div class="card" id="card"');
+		expect(html).toContain("That code is incorrect");
+	});
+
+	it("carries the script under a hash so no inline-script allowance is needed", async () => {
+		const res = await get(authorizeUrl({ client_id: "alpha", redirect_uri: ALPHA_REDIRECT }));
+		const csp = res.headers.get("Content-Security-Policy") ?? "";
+
+		expect(csp).toContain(`script-src '${CLIENT_SOURCE_HASH}'`);
+		expect(csp).not.toContain("unsafe-inline'; script");
+		expect(csp).not.toContain("'unsafe-eval'");
+		// The client posts back to us over fetch, which default-src 'none' would otherwise block.
+		expect(csp).toContain("connect-src 'self'");
+	});
+
+	it("gives every form a real action and method so a blocked script cannot strand anyone", async () => {
+		const res = await get(authorizeUrl({ client_id: "alpha", redirect_uri: ALPHA_REDIRECT }));
+		const html = await res.text();
+
+		expect(html).toContain('<form data-enhance method="post" action="/authorize"');
+		expect(html).not.toMatch(/<form(?![^>]*\baction=)/);
 	});
 });
 

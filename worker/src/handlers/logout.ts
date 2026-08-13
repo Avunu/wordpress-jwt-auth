@@ -2,7 +2,7 @@ import type { WorkerConfig } from "../config";
 import type { AuthWorkerEnv } from "../env";
 import { redirect } from "../lib/http";
 import { endSession } from "../lib/session";
-import { errorPage } from "../ui";
+import { errorPage, respond } from "../ui";
 
 /**
  * GET /logout — the OIDC end_session_endpoint.
@@ -30,12 +30,17 @@ export async function handleLogout(
 	const cleared = await endSession(request, env);
 
 	if (!target || !tenant) {
-		const res = errorPage({
-			title: "Signed out",
-			message: "You have been signed out.",
-			status: 200,
-			tenant,
-		});
+		// Always a top-level navigation from WordPress, never an enhanced fetch, so this renders a
+		// whole document and the 302 below stays a real redirect.
+		const res = respond(
+			request,
+			errorPage({
+				title: "Signed out",
+				message: "You have been signed out.",
+				status: 200,
+				tenant,
+			}),
+		);
 		res.headers.append("Set-Cookie", cleared);
 		return res;
 	}
