@@ -1,5 +1,16 @@
 # Changelog
 
+## [3.0.0](https://github.com/Avunu/wordpress-jwt-auth/compare/jwt-auth-worker-v2.0.0...jwt-auth-worker-v3.0.0) (2026-08-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* **worker:** the POST /authorize body field `action` is now `step`. Both sides ship together, so only sign-ins already on-screen across the deploy are affected; they recover by reloading.
+
+### Bug Fixes
+
+* **worker:** stop a form field shadowing the form's own action URL ([570c83a](https://github.com/Avunu/wordpress-jwt-auth/commit/570c83a802027d19815440026efa8accf8b8b447))
+
 ## [2.0.0](https://github.com/Avunu/wordpress-jwt-auth/compare/jwt-auth-worker-v1.0.2...jwt-auth-worker-v2.0.0) (2026-08-13)
 
 
