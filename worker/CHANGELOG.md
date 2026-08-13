@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.2](https://github.com/Avunu/wordpress-jwt-auth/compare/jwt-auth-worker-v1.0.1...jwt-auth-worker-v1.0.2) (2026-08-13)
+
+
+### Bug Fixes
+
+* **worker:** drop the two response headers that can break a browser sign-in ([0fd2d10](https://github.com/Avunu/wordpress-jwt-auth/commit/0fd2d108d8742f2dfbddbc73526a7b204d5a4923))
+* **worker:** explain a re-submitted code instead of blaming the session ([3d24c0d](https://github.com/Avunu/wordpress-jwt-auth/commit/3d24c0d0b791abe9650567a142fb4592e18c24bf))
+
 ## [1.0.1](https://github.com/Avunu/wordpress-jwt-auth/compare/jwt-auth-worker-v1.0.0...jwt-auth-worker-v1.0.1) (2026-08-12)
 
 
