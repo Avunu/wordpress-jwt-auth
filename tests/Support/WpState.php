@@ -50,6 +50,17 @@ final class WpState
     public static bool $loggedIn = false;
     public static bool $authCookieCleared = false;
     public static bool $doingCron = false;
+    public static bool $doingAjax = false;
+    public static bool $isAdmin = false;
+
+    /**
+     * Settings → General → "Anyone can register".
+     *
+     * Defaults to open, which is the opposite of a real WordPress install. That divergence is
+     * deliberate: the interesting default for this suite is the provisioning path every other test
+     * exercises, so the closed case is opted into by the handful of tests that are about it.
+     */
+    public static bool $usersCanRegister = true;
 
     // WooCommerce page context.
     public static bool $isAccountPage = false;
@@ -75,6 +86,9 @@ final class WpState
         self::$loggedIn = false;
         self::$authCookieCleared = false;
         self::$doingCron = false;
+        self::$doingAjax = false;
+        self::$isAdmin = false;
+        self::$usersCanRegister = true;
         self::$isAccountPage = false;
         self::$isCheckout = false;
         self::$failNextCreateUser = false;

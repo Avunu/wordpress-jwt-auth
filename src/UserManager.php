@@ -12,9 +12,12 @@ final class UserManager
      * Lookup order:
      *  1. User whose jwt_auth_sub meta matches the subject claim (handles email changes).
      *  2. User whose email matches the email claim.
-     *  3. Create a new user.
+     *  3. Create a new user — only while the site is accepting registrations.
+     *
+     * Returns null when nothing matched and registration is closed. Note that step 2 keeps working
+     * either way: adopting an account the site already decided to create is a link, not a signup.
      */
-    public static function findOrCreate(Claims $claims): \WP_User
+    public static function findOrCreate(Claims $claims): ?\WP_User
     {
         // 1. Look up by sub
         $users = get_users([
@@ -34,6 +37,10 @@ final class UserManager
             update_user_meta($user->ID, 'jwt_auth_sub', $claims->sub);
             self::syncProfile($user, $claims);
             return $user;
+        }
+
+        if (!Registration::isOpen()) {
+            return null;
         }
 
         return self::create($claims);

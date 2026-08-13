@@ -221,6 +221,25 @@ function wp_doing_cron(): bool
     return WpState::$doingCron;
 }
 
+function wp_doing_ajax(): bool
+{
+    return WpState::$doingAjax;
+}
+
+function is_admin(): bool
+{
+    return WpState::$isAdmin;
+}
+
+/** Only the options the plugin reads; anything else is a miss, as it would be on a fresh install. */
+function get_option(string $option, mixed $default = false): mixed
+{
+    return match ($option) {
+        'users_can_register' => WpState::$usersCanRegister,
+        default => $default,
+    };
+}
+
 function do_action(string $hook, mixed ...$args): void
 {
     WpState::$actions[] = ['hook' => $hook, 'args' => $args];

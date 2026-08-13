@@ -38,6 +38,11 @@
  *   define('JWT_AUTH_LOGOUT_URL',   '...');  // provider logout URL (optional)
  *
  * --- User creation -----------------------------------------------------------
+ * Whether accounts are created at all follows WordPress's own
+ * Settings > General > Membership > "Anyone can register" — not a constant. Untick it and
+ * the provider can authenticate whoever it likes without a WordPress account being minted.
+ * Note WordPress ships that box unticked.
+ *
  *   define('JWT_AUTH_DEFAULT_ROLE',     'subscriber');  // default
  *   define('JWT_AUTH_CLAIM_EMAIL',      'email');
  *   define('JWT_AUTH_CLAIM_FIRST_NAME', 'given_name');
@@ -84,6 +89,9 @@ add_action('plugins_loaded', static function (): void {
 
     // Check for OIDC callback on every early init (priority 1, before anything else reads the request).
     add_action('init', OidcClient::handleCallback(...), 1);
+
+    // Explain a refused sign-in once the provider has bounced the browser back to us.
+    add_action('init', OidcClient::handleDeniedReturn(...), 1);
 
     // Block all direct username/password authentication attempts.
     add_filter('authenticate', Validator::blockDirectAuth(...), 1, 3);

@@ -95,6 +95,43 @@ final class UserManagerTest extends WordPressTestCase
         $this->assertCount(1, WpState::$users);
     }
 
+    // ---------------------------------------------------------------------
+    // Registration closed
+    // ---------------------------------------------------------------------
+
+    public function test_creates_nothing_when_the_site_is_not_accepting_registrations(): void
+    {
+        WpState::$usersCanRegister = false;
+
+        $this->assertNull(UserManager::findOrCreate($this->claims()));
+        $this->assertSame([], WpState::$users);
+    }
+
+    public function test_a_known_subject_still_signs_in_when_registration_is_closed(): void
+    {
+        // Closing registration turns away strangers, not the people who already have accounts.
+        WpState::$usersCanRegister = false;
+        $existing = WpState::addUser('user@example.test', 'pin:abc');
+
+        $found = UserManager::findOrCreate($this->claims());
+
+        $this->assertSame($existing->ID, $found?->ID);
+    }
+
+    public function test_still_adopts_a_pre_existing_account_by_email_when_registration_is_closed(): void
+    {
+        // Adopting an account the site already chose to create is a link, not a signup, so the
+        // membership setting has no say in it.
+        WpState::$usersCanRegister = false;
+        $legacy = WpState::addUser('user@example.test');
+
+        $found = UserManager::findOrCreate($this->claims());
+
+        $this->assertSame($legacy->ID, $found?->ID);
+        $this->assertSame('pin:abc', WpState::metaFor($legacy->ID)['jwt_auth_sub'] ?? null);
+        $this->assertCount(1, WpState::$users);
+    }
+
     public function test_syncs_changed_names_on_every_login(): void
     {
         WpState::addUser('user@example.test', 'pin:abc', 'Ada', 'Lovelace');

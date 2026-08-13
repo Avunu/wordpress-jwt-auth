@@ -24,6 +24,8 @@ abstract class WordPressTestCase extends TestCase
         $_REQUEST = [];
         $_SERVER = ['HTTP_HOST' => 'example.test'];
         $_COOKIE = [];
+        // wp-includes/vars.php sets this during bootstrap, long before the init hooks under test.
+        $GLOBALS['pagenow'] = 'index.php';
     }
 
     protected function tearDown(): void
