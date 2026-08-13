@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.0](https://github.com/Avunu/wordpress-jwt-auth/compare/jwt-auth-worker-v1.0.2...jwt-auth-worker-v2.0.0) (2026-08-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* **worker:** the ui.ts page builders now return a Screen rather than a Response, and finishRedirect/completeSignIn/alreadyUsed take the Request so they can tell an enhanced submission from a navigation.
+
+### Features
+
+* **worker:** submit the sign-in forms over fetch instead of navigating ([8d813ab](https://github.com/Avunu/wordpress-jwt-auth/commit/8d813abe9914563981b4f1e4e8e9dab0e45675a3))
+
 ## [1.0.2](https://github.com/Avunu/wordpress-jwt-auth/compare/jwt-auth-worker-v1.0.1...jwt-auth-worker-v1.0.2) (2026-08-13)
 
 
