@@ -40,6 +40,12 @@ final class WpState
     /** @var list<array{hook: string, args: list<mixed>}> */
     public static array $actions = [];
 
+    /** @var array<string, array<int, list<callable>>> hook => priority => callbacks */
+    public static array $filters = [];
+
+    /** @var list<array{name: string, value: string, options: array<string, mixed>}> */
+    public static array $cookiesSet = [];
+
     /** @var list<array{handle: string, data: array<string, mixed>}> */
     public static array $localizedScripts = [];
 
@@ -80,6 +86,8 @@ final class WpState
         self::$httpCalls = [];
         self::$authCookies = [];
         self::$actions = [];
+        self::$filters = [];
+        self::$cookiesSet = [];
         self::$localizedScripts = [];
         self::$enqueuedScripts = [];
         self::$currentUserId = 0;

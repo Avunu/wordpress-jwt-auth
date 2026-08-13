@@ -10,6 +10,8 @@ final class OidcClient
     private const STATE_PREFIX    = 'jwt_auth_state_';
     private const VERIFIER_PREFIX = 'jwt_auth_cv_';
     private const TRANSIENT_TTL   = 600; // 10 minutes
+    /** Browser-held secret proving a callback belongs to the browser that started the flow. */
+    private const STATE_COOKIE    = 'jwt_auth_state_binder';
 
     // -------------------------------------------------------------------------
     // OIDC discovery
@@ -94,12 +96,27 @@ final class OidcClient
             wp_die('Missing callback parameters.', 'Authentication Error', ['response' => 400]);
         }
 
-        // Validate state (CSRF) — single-use transient
-        $redirectTo = get_transient(self::STATE_PREFIX . $state);
-        if ($redirectTo === false) {
+        // Validate state (CSRF) — single-use transient, bound to the browser that started the flow.
+        $record = get_transient(self::STATE_PREFIX . $state);
+        $binder = (string) ($_COOKIE[self::STATE_COOKIE] ?? '');
+        self::clearStateCookie();
+
+        if ($record === false) {
             wp_die('Invalid or expired authentication state.', 'Authentication Error', ['response' => 400]);
         }
         delete_transient(self::STATE_PREFIX . $state);
+
+        // A state minted in another browser is not this browser's sign-in, whatever else is valid
+        // about it. hash_equals because the comparison is against a secret.
+        if (!is_array($record)
+            || $binder === ''
+            || !hash_equals((string) ($record['binder'] ?? ''), hash('sha256', $binder))
+        ) {
+            delete_transient(self::VERIFIER_PREFIX . $state);
+            wp_die('Invalid or expired authentication state.', 'Authentication Error', ['response' => 400]);
+        }
+
+        $redirectTo = (string) $record['redirect_to'];
 
         $verifier = get_transient(self::VERIFIER_PREFIX . $state);
         if ($verifier === false) {
@@ -221,11 +238,54 @@ final class OidcClient
     // PKCE + state helpers
     // -------------------------------------------------------------------------
 
+    /**
+     * Mint the CSRF state, and bind it to THIS browser.
+     *
+     * WordPress transients are site-global: a state minted in one browser is redeemable in any
+     * other. On its own that makes `state` a shared server-side nonce rather than the per-user-agent
+     * value RFC 6749 §10.12 requires, and it makes PKCE inert here too — the same unbound transient
+     * hands out the verifier, so whoever minted the pair is not necessarily whoever redeems it.
+     *
+     * The consequence is authorization-code injection: an attacker completes a sign-in as
+     * themselves, holds the resulting code, and navigates a victim to the callback. Every check
+     * passes on the merits, the victim's own session is destroyed, and they are silently logged in
+     * as the attacker — on a landing page the attacker also chose, since redirect_to travels inside
+     * the state transient.
+     *
+     * The fix is a secret this browser holds and the transient only knows the hash of, so a
+     * callback arriving in any other browser cannot satisfy it.
+     */
     private static function generateState(string $redirectTo): string
     {
-        $state = bin2hex(random_bytes(16));
-        set_transient(self::STATE_PREFIX . $state, $redirectTo ?: Config::redirect(), self::TRANSIENT_TTL);
+        $state  = bin2hex(random_bytes(16));
+        $binder = bin2hex(random_bytes(32));
+
+        set_transient(self::STATE_PREFIX . $state, [
+            'redirect_to' => $redirectTo ?: Config::redirect(),
+            'binder'      => hash('sha256', $binder),
+        ], self::TRANSIENT_TTL);
+
+        setcookie(self::STATE_COOKIE, $binder, [
+            'expires'  => time() + self::TRANSIENT_TTL,
+            'path'     => '/',
+            'secure'   => is_ssl(),
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ]);
+
         return $state;
+    }
+
+    /** Clear the binder on every callback outcome, so a state can never be retried. */
+    private static function clearStateCookie(): void
+    {
+        setcookie(self::STATE_COOKIE, '', [
+            'expires'  => time() - 3600,
+            'path'     => '/',
+            'secure'   => is_ssl(),
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ]);
     }
 
     private static function generatePkce(string $state): string

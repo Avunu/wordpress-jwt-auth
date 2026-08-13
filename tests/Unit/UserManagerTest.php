@@ -155,4 +155,59 @@ final class UserManagerTest extends WordPressTestCase
         $this->assertSame($before->first_name, $found->first_name);
         $this->assertSame($before->user_email, $found->user_email);
     }
+
+    // ---------------------------------------------------------------------
+    // A changed email must actually revoke the old address
+    // ---------------------------------------------------------------------
+
+    public function test_an_admin_changing_the_email_drops_the_stale_provider_binding(): void
+    {
+        // This provider derives the subject from the address, so the stored binding keeps pointing
+        // at whatever address was used last. Without this, changing a compromised user's email —
+        // the textbook remediation — leaves the attacker's old address matching by subject, with
+        // all of the account's roles intact.
+        $user = WpState::addUser('alice@old.example', 'pin:abc');
+        $before = clone $user;
+        $user->user_email = 'alice@new.example';
+
+        UserManager::forgetSubOnEmailChange($user->ID, $before);
+
+        $this->assertArrayNotHasKey('jwt_auth_sub', WpState::metaFor($user->ID) ?? []);
+    }
+
+    public function test_the_old_address_can_no_longer_take_over_the_account(): void
+    {
+        $alice = WpState::addUser('alice@old.example', 'pin:abc');
+        $before = clone $alice;
+        $alice->user_email = 'alice@new.example';
+        UserManager::forgetSubOnEmailChange($alice->ID, $before);
+
+        // The attacker still controls the old mailbox and signs in with it.
+        $found = UserManager::findOrCreate($this->claims(email: 'alice@old.example', sub: 'pin:abc'));
+
+        $this->assertNotSame($alice->ID, $found?->ID, 'must not land in Alice\'s account');
+        $this->assertSame('alice@new.example', $alice->user_email, 'and must not rewrite her address');
+    }
+
+    public function test_an_unchanged_email_keeps_the_binding(): void
+    {
+        $user = WpState::addUser('alice@example.test', 'pin:abc');
+
+        UserManager::forgetSubOnEmailChange($user->ID, clone $user);
+
+        $this->assertSame('pin:abc', WpState::metaFor($user->ID)['jwt_auth_sub'] ?? null);
+    }
+
+    public function test_the_plugin_own_provider_sync_does_not_drop_the_binding(): void
+    {
+        // syncProfile writes the token's email back to the user, which fires profile_update. If that
+        // undid the binding, every legitimate address change at the provider would de-key the
+        // account and mint a fresh one on the next sign-in.
+        $user = WpState::addUser('old@example.test', 'pin:abc');
+
+        UserManager::findOrCreate($this->claims(email: 'new@example.test', sub: 'pin:abc'));
+
+        $this->assertSame('new@example.test', $user->user_email);
+        $this->assertSame('pin:abc', WpState::metaFor($user->ID)['jwt_auth_sub'] ?? null);
+    }
 }

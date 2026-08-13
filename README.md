@@ -182,7 +182,9 @@ What a turned-away visitor sees:
 
 ### Direct login is blocked
 
-The `authenticate` WordPress filter (priority 1) returns `WP_Error` for all username/password attempts, including programmatic calls and WooCommerce checkout. WP-CLI and cron jobs are exempt.
+The `authenticate` WordPress filter returns `WP_Error` for all username/password attempts, including programmatic calls, XML-RPC, application passwords and WooCommerce checkout. WP-CLI and cron jobs are exempt.
+
+The hook runs at **priority 30**, which is the part that makes this true rather than merely intended. `authenticate` is a filter, so the login is decided by whatever the last callback returns, and WordPress core registers its own handlers at priority 20. Registered below them — as this was until v3.0.1 — the refusal was produced and then discarded by core's successful `WP_User`, leaving password login working on every path that does not pass through `wp-login.php`. If you fork this, do not "tidy" that number downwards; `tests/Unit/AuthenticateFilterTest.php` runs the real filter chain and pins both the fix and the original bug.
 
 ### WooCommerce
 

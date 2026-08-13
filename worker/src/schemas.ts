@@ -29,25 +29,41 @@ export const EmailField = z.string().trim().toLowerCase().pipe(z.email().max(254
  * name="action">` turns the form's own URL into an HTMLInputElement. Naming the tag after a form
  * property is a trap for any script that touches these forms, and it caught us once already.
  */
+/**
+ * Which flow this submission belongs to, as rendered into the page.
+ *
+ * There is one flow cookie for the whole issuer, and every /authorize render overwrites it — so a
+ * page and the cookie can be desynchronised by any other tab performing a top-level navigation.
+ * Without this field the worker would happily execute a click made on one tenant's page against a
+ * different tenant's flow: the SSO "Continue" button on site A minting an identity assertion, and a
+ * permanent session link, for site B. Carrying the id in the form makes the page state explicit, so
+ * the two can be compared instead of assumed equal.
+ */
+const flowField = z.string().min(1).max(64);
+
 export const RequestCodeForm = z.object({
 	step: z.literal("request_code"),
+	flow: flowField,
 	email: EmailField,
 	"cf-turnstile-response": z.string().min(1).max(2048),
 });
 
 export const VerifyCodeForm = z.object({
 	step: z.literal("verify_code"),
+	flow: flowField,
 	pin: z.string().regex(/^\d{6}$/),
 });
 
 /** Return to the email step for the same flow — no other fields. */
 export const ChangeEmailForm = z.object({
 	step: z.literal("change_email"),
+	flow: flowField,
 });
 
 /** Accept the SSO session's identity for a site this browser hasn't signed into before. */
 export const ContinueSsoForm = z.object({
 	step: z.literal("continue_sso"),
+	flow: flowField,
 });
 
 export const AuthorizeForm = z.discriminatedUnion("step", [

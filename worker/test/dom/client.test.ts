@@ -71,7 +71,7 @@ describe("the enhanced client, in a DOM", () => {
 		// The regression. With `<input name="action">` present and the client reading `form.action`,
 		// fetch received an element, stringified it to "[object HTMLInputElement]", and the worker
 		// answered 404 — which the client then swapped into the page as the text "Not found".
-		const form = await mount(emailFormPage({ tenant: TENANT, siteKey: "k" }));
+		const form = await mount(emailFormPage({ tenant: TENANT, siteKey: "k", flowId: "flow-abc" }));
 		shadowLikeABrowser(form, "step");
 		Object.defineProperty(form, "action", {
 			value: form.querySelector('[name="step"]'),
@@ -92,7 +92,9 @@ describe("the enhanced client, in a DOM", () => {
 	});
 
 	it("sends the step and the typed values", async () => {
-		const form = await mount(pinFormPage({ tenant: TENANT, email: "a@b.test" }));
+		const form = await mount(
+			pinFormPage({ tenant: TENANT, email: "a@b.test", flowId: "flow-abc" }),
+		);
 		(form.querySelector("#pin") as HTMLInputElement).value = "123456";
 
 		const fetchMock = respondWith({});
@@ -103,10 +105,15 @@ describe("the enhanced client, in a DOM", () => {
 		const body = (fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body as FormData;
 		expect(body.get("step")).toBe("verify_code");
 		expect(body.get("pin")).toBe("123456");
+		// The flow the page was rendered for travels with the submission, so the worker can refuse
+		// a click made on a page that a later render in another tab has since superseded.
+		expect(body.get("flow")).toBe("flow-abc");
 	});
 
 	it("navigates on the redirect header instead of swapping", async () => {
-		const form = await mount(pinFormPage({ tenant: TENANT, email: "a@b.test" }));
+		const form = await mount(
+			pinFormPage({ tenant: TENANT, email: "a@b.test", flowId: "flow-abc" }),
+		);
 		const fetchMock = respondWith({
 			headers: { "X-Auth-Redirect": "https://alpha.test/?code=abc&state=s" },
 		});
@@ -133,7 +140,9 @@ describe("the enhanced client, in a DOM", () => {
 	});
 
 	it("swaps the card on an error status rather than ignoring it", async () => {
-		const form = await mount(pinFormPage({ tenant: TENANT, email: "a@b.test" }));
+		const form = await mount(
+			pinFormPage({ tenant: TENANT, email: "a@b.test", flowId: "flow-abc" }),
+		);
 		vi.stubGlobal(
 			"fetch",
 			respondWith({
@@ -149,7 +158,9 @@ describe("the enhanced client, in a DOM", () => {
 	});
 
 	it("disables the submitter so a double-click cannot fire twice", async () => {
-		const form = await mount(pinFormPage({ tenant: TENANT, email: "a@b.test" }));
+		const form = await mount(
+			pinFormPage({ tenant: TENANT, email: "a@b.test", flowId: "flow-abc" }),
+		);
 		const button = form.querySelector("button") as HTMLButtonElement;
 		let release: () => void = () => {};
 		const gate = new Promise<void>((r) => {
@@ -171,7 +182,7 @@ describe("the enhanced client, in a DOM", () => {
 	});
 
 	it("leaves a form without data-enhance to the browser", async () => {
-		await mount(pinFormPage({ tenant: TENANT, email: "a@b.test" }));
+		await mount(pinFormPage({ tenant: TENANT, email: "a@b.test", flowId: "flow-abc" }));
 		document.body.insertAdjacentHTML("beforeend", '<form id="plain" action="/x"></form>');
 		const plain = document.querySelector("#plain") as HTMLFormElement;
 

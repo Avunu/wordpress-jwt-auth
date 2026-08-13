@@ -79,6 +79,45 @@ final class UserManager
         return $user;
     }
 
+    /**
+     * Set while this class is writing to a user, so forgetSubOnEmailChange() can tell an
+     * administrator re-keying an account apart from our own provider sync.
+     */
+    private static bool $syncing = false;
+
+    /**
+     * Drop the provider binding when somebody else changes a user's email address.
+     *
+     * `jwt_auth_sub` is checked before the email precisely so an account survives an address change
+     * at the provider. The cost is that the binding is authoritative and never expires — and with
+     * this provider the subject is a pure function of the address (`pin:sha256(email)`), so the
+     * stored value keeps pointing at whatever address the user signed in with *last*.
+     *
+     * That inverts the meaning of the most security-sensitive edit an administrator can make. Change
+     * a compromised user's email to cut off the attacker, and the old address still matches by
+     * subject: the attacker signs in, lands in the account with all its roles, and the sync writes
+     * the old address back over the new one. Forgetting the binding makes the change do what the
+     * administrator plainly meant — the next sign-in has to match the new address, and re-keys.
+     *
+     * Providers with opaque subjects are unaffected: they simply re-key on the next sign-in too.
+     */
+    public static function forgetSubOnEmailChange(int $userId, mixed $oldUserData): void
+    {
+        if (self::$syncing) {
+            return; // our own provider sync, which is the case this must not undo
+        }
+
+        $current = get_user_by('ID', $userId);
+        if (!$current instanceof \WP_User || !$oldUserData instanceof \WP_User) {
+            return;
+        }
+        if ($current->user_email === $oldUserData->user_email) {
+            return;
+        }
+
+        delete_user_meta($userId, 'jwt_auth_sub');
+    }
+
     /** Keeps display name and email in sync with the provider on every login. */
     private static function syncProfile(\WP_User $user, Claims $claims): void
     {
@@ -99,7 +138,12 @@ final class UserManager
         }
 
         if (count($updates) > 1) {
-            wp_update_user($updates);
+            self::$syncing = true;
+            try {
+                wp_update_user($updates);
+            } finally {
+                self::$syncing = false;
+            }
         }
     }
 }

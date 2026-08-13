@@ -87,8 +87,8 @@ export async function handleAuthorizeGet(
 	const res = respond(
 		request,
 		session
-			? continuePage({ tenant, email: session.email })
-			: emailFormPage({ tenant, siteKey: config.provider.turnstileSiteKey }),
+			? continuePage({ tenant, email: session.email, flowId })
+			: emailFormPage({ tenant, siteKey: config.provider.turnstileSiteKey, flowId }),
 	);
 	res.headers.append("Set-Cookie", setCookie(FLOW_COOKIE, flowId, FLOW_COOKIE_TTL_SECONDS));
 	if (session) {
@@ -169,10 +169,28 @@ async function routeAuthorizeForm(
 			emailFormPage({
 				tenant,
 				siteKey: config.provider.turnstileSiteKey,
+				flowId,
 				error: "Please check your details and try again.",
 				status: 400,
 			}),
 		);
+	}
+
+	// The page and the cookie must agree about which sign-in this is.
+	//
+	// One flow cookie serves the whole issuer and every /authorize render overwrites it, so any
+	// other tab — including one an attacker navigates in a popup — can repoint it between the moment
+	// a page is rendered and the moment its button is pressed. Executing the submission against
+	// whatever the cookie now says would let a click made on one tenant's page complete a different
+	// tenant's flow: the "Continue" button on a page branded for site A minting a live identity
+	// assertion for site B, and permanently linking the SSO session to it, with no email sent and
+	// nothing on screen naming the site that actually benefits.
+	//
+	// Refusing is the right answer rather than preferring one source: a mismatch means we cannot
+	// know which sign-in the person consented to.
+	if (form.data.flow !== flowId) {
+		console.log(JSON.stringify({ event: "flow_form_cookie_mismatch", step: form.data.step }));
+		return respond(request, flowSuperseded());
 	}
 
 	switch (form.data.step) {
@@ -193,10 +211,13 @@ async function routeAuthorizeForm(
 			// Nothing is sent; a later request_code overwrites the challenge and resets attempts.
 			// Reached both from the PIN step and from the SSO confirmation, which is the only way to
 			// sign in as somebody else without first signing out.
-			return respond(request, emailFormPage({ tenant, siteKey: config.provider.turnstileSiteKey }));
+			return respond(
+				request,
+				emailFormPage({ tenant, siteKey: config.provider.turnstileSiteKey, flowId }),
+			);
 		}
 		case "continue_sso": {
-			return continueSso(request, env, config, stub, tenant);
+			return continueSso(request, env, config, stub, flowId, tenant);
 		}
 		default: {
 			return verifyCode(request, env, config, stub, flowId, tenant, form.data.pin);
@@ -216,7 +237,10 @@ async function requestCode(
 ): Promise<Response> {
 	const { provider } = config;
 	const renderError = (error: string, status = 400): Response =>
-		respond(request, emailFormPage({ tenant, siteKey: provider.turnstileSiteKey, error, status }));
+		respond(
+			request,
+			emailFormPage({ tenant, siteKey: provider.turnstileSiteKey, flowId, error, status }),
+		);
 
 	const human = await verifyTurnstile(
 		turnstileToken,
@@ -269,7 +293,7 @@ async function requestCode(
 
 	return respond(
 		request,
-		pinFormPage({ tenant, email, notice: "Check your inbox for the 6-digit code." }),
+		pinFormPage({ tenant, email, flowId, notice: "Check your inbox for the 6-digit code." }),
 	);
 }
 
@@ -299,6 +323,7 @@ async function verifyCode(
 				pinFormPage({
 					tenant,
 					email: "your email",
+					flowId,
 					error: "That code is incorrect. Please try again.",
 					status: 401,
 				}),
@@ -339,6 +364,7 @@ async function continueSso(
 	env: AuthWorkerEnv,
 	config: WorkerConfig,
 	stub: FlowStub,
+	flowId: string,
 	tenant: Tenant,
 ): Promise<Response> {
 	const sessionId = getCookie(request, SSO_COOKIE);
@@ -348,7 +374,10 @@ async function continueSso(
 	if (!linked) {
 		// The session lapsed between rendering the page and the click. Ask for an email instead of
 		// failing: the flow itself is still good.
-		return respond(request, emailFormPage({ tenant, siteKey: config.provider.turnstileSiteKey }));
+		return respond(
+			request,
+			emailFormPage({ tenant, siteKey: config.provider.turnstileSiteKey, flowId }),
+		);
 	}
 
 	const result = await stub.completeWithIdentity(linked.email);
@@ -401,6 +430,20 @@ function sessionExpired(): Screen {
 	return errorPage({
 		title: "Sign-in session expired",
 		message: "This sign-in session has expired. Please return to the site and try again.",
+		status: 400,
+	});
+}
+
+/**
+ * The page was rendered for one sign-in and the browser now holds another. Benign in the ordinary
+ * case — a second sign-in opened in another tab — so the copy points at the fix rather than
+ * alarming anyone; the log line is where the malicious case shows up.
+ */
+function flowSuperseded(): Screen {
+	return errorPage({
+		title: "Start again",
+		message:
+			"Another sign-in was started in this browser, so this page is out of date. Return to the site and sign in again.",
 		status: 400,
 	});
 }

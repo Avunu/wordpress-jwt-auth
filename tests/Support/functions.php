@@ -221,6 +221,12 @@ function wp_doing_cron(): bool
     return WpState::$doingCron;
 }
 
+function is_ssl(): bool
+{
+    return true;
+}
+
+
 function wp_doing_ajax(): bool
 {
     return WpState::$doingAjax;
@@ -243,6 +249,46 @@ function get_option(string $option, mixed $default = false): mixed
 function do_action(string $hook, mixed ...$args): void
 {
     WpState::$actions[] = ['hook' => $hook, 'args' => $args];
+}
+
+// ---------------------------------------------------------------------------
+// Filters
+//
+// A real priority-ordered filter chain, because for `authenticate` the ordering *is* the security
+// property: the login is whatever the LAST callback returns, so a refusal registered below core's
+// handlers is silently overwritten by them. Testing the callback in isolation cannot see that —
+// which is exactly how a plugin whose headline control did nothing kept a green suite.
+// ---------------------------------------------------------------------------
+
+function add_filter(string $hook, callable $callback, int $priority = 10, int $args = 1): bool
+{
+    WpState::$filters[$hook][$priority][] = $callback;
+    return true;
+}
+
+function apply_filters(string $hook, mixed $value, mixed ...$args): mixed
+{
+    $byPriority = WpState::$filters[$hook] ?? [];
+    ksort($byPriority);
+    foreach ($byPriority as $callbacks) {
+        foreach ($callbacks as $callback) {
+            $value = $callback($value, ...$args);
+        }
+    }
+    return $value;
+}
+
+/**
+ * WordPress's own wp_authenticate(), faithfully enough for the ordering to matter: it is the filter
+ * result that decides, and a null or non-existent user becomes a generic failure.
+ */
+function wp_authenticate(string $username, string $password): WP_User|WP_Error
+{
+    $user = apply_filters('authenticate', null, $username, $password);
+    if ($user === null) {
+        return new WP_Error('authentication_failed', 'Invalid username or password.');
+    }
+    return $user;
 }
 
 function wp_generate_password(int $length = 12, bool $special_chars = true): string
@@ -329,6 +375,12 @@ function wp_update_user(array $data): int|WP_Error
 function update_user_meta(int $id, string $key, mixed $value): bool
 {
     WpState::$userMeta[$id][$key] = $value;
+    return true;
+}
+
+function delete_user_meta(int $id, string $key): bool
+{
+    unset(WpState::$userMeta[$id][$key]);
     return true;
 }
 

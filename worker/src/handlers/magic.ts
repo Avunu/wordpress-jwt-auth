@@ -49,17 +49,51 @@ export async function handleMagicGet(
 }
 
 /**
+ * A cross-site POST here is never a human pressing the button on our confirm page.
+ *
+ * This endpoint is deliberately cookie-independent, so `SameSite` protects nothing and the 256-bit
+ * token is the whole authenticator — which means anyone _holding_ a token can have someone else's
+ * browser spend it. An attacker who starts a sign-in with their own address, does not click their
+ * own link, and auto-submits it from a page the victim loads gets a code minted into the victim's
+ * browser _and_ a fresh SSO cookie bound to the attacker's identity, good for the full idle window.
+ * The victim is then silently signed in as the attacker everywhere in the fleet.
+ *
+ * Requiring same-origin costs the documented cross-device case nothing: the confirm page is served
+ * from this origin to whatever browser opened the link, so the POST that follows is same-origin in
+ * that browser. `Sec-Fetch-Site: none` covers a direct navigation, and the Origin comparison is the
+ * fallback for clients that do not send Fetch Metadata.
+ */
+function isSameOrigin(request: Request, issuer: string): boolean {
+	const site = request.headers.get("Sec-Fetch-Site");
+	if (site) {
+		return site === "same-origin" || site === "none";
+	}
+	const origin = request.headers.get("Origin");
+	return origin === null || origin === issuer;
+}
+
+/**
  * POST /magic — the real human click. Consume the token and redirect back to WordPress.
  *
- * Deliberately cookie-independent so the link works in a different browser or on another device;
- * the 256-bit token is the whole authenticator. That also means the tenant has to come from the
- * flow record rather than from a cookie or the form.
+ * Cookie-independent by design so the link works in a different browser or on another device; the
+ * tenant therefore comes from the flow record rather than from a cookie or the form.
  */
 export async function handleMagicPost(
 	request: Request,
 	env: AuthWorkerEnv,
 	config: WorkerConfig,
 ): Promise<Response> {
+	if (!isSameOrigin(request, config.provider.issuer)) {
+		console.log(
+			JSON.stringify({
+				event: "magic_cross_site_post",
+				fetchSite: request.headers.get("Sec-Fetch-Site"),
+				origin: request.headers.get("Origin"),
+			}),
+		);
+		return respond(request, linkExpired());
+	}
+
 	const form = await readForm(request);
 	const { flow } = form;
 	const { token } = form;

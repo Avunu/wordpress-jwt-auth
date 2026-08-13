@@ -39,11 +39,19 @@ final class Validator
 
     /**
      * Blocks all direct username/password authentication.
-     * Hooked at priority 1 — fires before WP's own handlers.
      *
-     * The `authenticate` filter is seeded with null by wp_authenticate(), and a filter must be able
-     * to hand back whatever it was given. Declaring anything narrower turns the WP-CLI/cron
-     * pass-through below into a fatal TypeError on the very path it exists to keep working.
+     * Hooked LAST, not first (jwt-auth.php). `authenticate` is a filter, so its value is whatever
+     * the final callback returns — running at priority 1 and handing back a WP_Error only blocks
+     * the login if every later callback preserves it, and WordPress core's own handlers sit at
+     * priority 20. Registering below them made this an advertised control that did nothing on the
+     * paths that matter: XML-RPC, application passwords, and any direct wp_authenticate() call all
+     * reach core's handler, which authenticates the credential and returns a WP_User, overwriting
+     * the refusal. Running after core means we get the last word whatever it decided.
+     *
+     * The filter is seeded with null by wp_authenticate(), and a filter must be able to hand back
+     * whatever it was given, so the return type has to admit null — declaring anything narrower
+     * turns the WP-CLI/cron pass-through below into a fatal TypeError on the very path it exists
+     * to keep working.
      */
     public static function blockDirectAuth(
         mixed $user,
@@ -51,6 +59,13 @@ final class Validator
         string $password,
     ): \WP_Error|\WP_User|null {
         if ((defined('WP_CLI') && WP_CLI) || wp_doing_cron()) {
+            return $user;
+        }
+
+        // Nothing was submitted, so there is no credential to refuse. Hand back whatever core
+        // produced — its "empty username" errors are better UX than a lecture about SSO, and
+        // wp_authenticate() treats those codes specially.
+        if ($username === '' && $password === '') {
             return $user;
         }
 

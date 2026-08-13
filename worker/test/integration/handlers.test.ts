@@ -74,6 +74,11 @@ function postPartial(
 	});
 }
 
+/** The flow id inside a `__Host-wp_auth_flow=…` cookie fragment, which forms must now echo. */
+function flowIdFrom(cookieFragment: string | undefined): string {
+	return (cookieFragment ?? "").split("=")[1] ?? "";
+}
+
 /** Drive a flow to the point where the next correct PIN completes it. */
 async function armedFlow(flowId: string, pin: string, clientId = "alpha"): Promise<string> {
 	const stub = flowStub(flowId);
@@ -180,7 +185,7 @@ describe("GET /authorize — tenant resolution", () => {
 		const [flowCookie] = setCookie.split(";");
 		const stepped = await postForm(
 			`${ISSUER}/authorize`,
-			{ step: "change_email" },
+			{ step: "change_email", flow: flowIdFrom(flowCookie) },
 			flowCookie ?? "",
 		);
 		expect(stepped.status).toBe(200);
@@ -280,7 +285,7 @@ describe("enhanced (fetch) submissions", () => {
 
 		const res = await postPartial(
 			`${ISSUER}/authorize`,
-			{ step: "verify_code", pin: "424242" },
+			{ step: "verify_code", pin: "424242", flow: "partial-success" },
 			cookie,
 		);
 
@@ -300,7 +305,7 @@ describe("enhanced (fetch) submissions", () => {
 
 		const res = await postForm(
 			`${ISSUER}/authorize`,
-			{ step: "verify_code", pin: "515151" },
+			{ step: "verify_code", pin: "515151", flow: "plain-success" },
 			cookie,
 		);
 
@@ -314,7 +319,7 @@ describe("enhanced (fetch) submissions", () => {
 
 		const res = await postPartial(
 			`${ISSUER}/authorize`,
-			{ step: "verify_code", pin: "000000" },
+			{ step: "verify_code", pin: "000000", flow: "partial-error" },
 			cookie,
 		);
 
@@ -331,7 +336,7 @@ describe("enhanced (fetch) submissions", () => {
 
 		const res = await postForm(
 			`${ISSUER}/authorize`,
-			{ step: "verify_code", pin: "000000" },
+			{ step: "verify_code", pin: "000000", flow: "plain-error" },
 			cookie,
 		);
 
@@ -392,7 +397,7 @@ describe("submitting a code twice", () => {
 
 		const res = await postForm(
 			`${ISSUER}/authorize`,
-			{ step: "verify_code", pin: "135790" },
+			{ step: "verify_code", pin: "135790", flow: flowId },
 			`__Host-wp_auth_flow=${flowId}`,
 		);
 
@@ -401,6 +406,111 @@ describe("submitting a code twice", () => {
 		expect(html).toContain("Alpha Site");
 		expect(html).not.toContain("session has expired");
 		expect(html).not.toContain("incorrect");
+	});
+});
+
+describe("security regressions", () => {
+	it("refuses a cross-site POST to /magic", async () => {
+		// Login CSRF. The endpoint takes no cookie by design, so SameSite protects nothing: an
+		// attacker holding their OWN unspent magic token can auto-submit it from a page the victim
+		// loads, minting a code into the victim's browser and — worse — an SSO cookie bound to the
+		// attacker's identity, after which the whole fleet signs the victim in as the attacker.
+		const flow = "magic-csrf";
+		const stub = flowStub(flow);
+		await stub.create(context("alpha", ALPHA_REDIRECT));
+		await stub.setChallenge(EMAIL, await hashSecret("111111", flow), await hashSecret("tok", flow));
+
+		const res = await exports.default.fetch(`${ISSUER}/magic`, {
+			method: "POST",
+			redirect: "manual",
+			headers: {
+				"Content-Type": "application/x-www-form-urlencoded",
+				// What a cross-origin auto-submitting form actually sends.
+				"Sec-Fetch-Site": "cross-site",
+				Origin: "https://evil.test",
+			},
+			body: new URLSearchParams({ flow, token: "tok" }).toString(),
+		});
+
+		expect(res.status).toBe(410);
+		expect(res.headers.get("Set-Cookie")).toBeNull(); // no SSO session planted
+		expect(res.headers.get("Location")).toBeNull(); // no code handed out
+		// And the token is still unspent, so the real human's click still works.
+		const still = await stub.verifyMagic(await hashSecret("tok", flow));
+		expect(still.ok).toBe(true);
+	});
+
+	it("still accepts the same-origin POST the confirm page makes", async () => {
+		const flow = "magic-same-origin";
+		const stub = flowStub(flow);
+		await stub.create(context("alpha", ALPHA_REDIRECT));
+		await stub.setChallenge(EMAIL, await hashSecret("222222", flow), await hashSecret("tok", flow));
+
+		const res = await exports.default.fetch(`${ISSUER}/magic`, {
+			method: "POST",
+			redirect: "manual",
+			headers: {
+				"Content-Type": "application/x-www-form-urlencoded",
+				"Sec-Fetch-Site": "same-origin",
+			},
+			body: new URLSearchParams({ flow, token: "tok" }).toString(),
+		});
+
+		expect(res.status).toBe(302);
+		expect(res.headers.get("Location")).toContain("https://alpha.test/");
+	});
+
+	it("refuses a submission whose page belongs to a different flow", async () => {
+		// Flow substitution. One flow cookie serves the whole issuer and every render overwrites it,
+		// so another tab can repoint it between render and click — completing a *different* tenant's
+		// sign-in from a page branded for this one, with no email sent and nothing on screen naming
+		// the site that benefits.
+		const victim = "flow-page";
+		const attacker = "flow-cookie";
+		await flowStub(victim).create(context("alpha", ALPHA_REDIRECT));
+		await flowStub(attacker).create(context("beta", BETA_REDIRECT));
+
+		const res = await postForm(
+			`${ISSUER}/authorize`,
+			{ step: "change_email", flow: victim }, // the page the human is looking at
+			`__Host-wp_auth_flow=${attacker}`, // what another tab left in the cookie
+		);
+
+		expect(res.status).toBe(400);
+		const html = await res.text();
+		expect(html).toContain("Start again");
+		expect(html).not.toContain("Beta Site");
+	});
+
+	it("refuses a client_secret rather than ignoring one", async () => {
+		// Discovery advertises auth method "none". Silently accepting a secret would let an operator
+		// believe JWT_AUTH_CLIENT_SECRET adds a factor when it does nothing at all.
+		const code = await mintCodeFor("secret-tok", "alpha", ALPHA_REDIRECT);
+		const res = await postForm(`${ISSUER}/token`, {
+			grant_type: "authorization_code",
+			code,
+			redirect_uri: ALPHA_REDIRECT,
+			code_verifier: CODE_VERIFIER,
+			client_id: "alpha",
+			client_secret: "hunter2",
+		});
+
+		expect(res.status).toBe(401);
+		expect((await res.json()) as { error: string }).toMatchObject({ error: "invalid_client" });
+	});
+
+	it("still accepts the empty client_secret the setup instructions print", async () => {
+		const code = await mintCodeFor("secret-empty", "alpha", ALPHA_REDIRECT);
+		const res = await postForm(`${ISSUER}/token`, {
+			grant_type: "authorization_code",
+			code,
+			redirect_uri: ALPHA_REDIRECT,
+			code_verifier: CODE_VERIFIER,
+			client_id: "alpha",
+			client_secret: "",
+		});
+
+		expect(res.status).toBe(200);
 	});
 });
 
@@ -442,7 +552,7 @@ describe("cross-site SSO", () => {
 
 		const confirmed = await postForm(
 			`${ISSUER}/authorize`,
-			{ step: "continue_sso" },
+			{ step: "continue_sso", flow: flowIdFrom(flowCookie) },
 			`${cookie}; ${flowCookie}`,
 		);
 		expect(confirmed.status).toBe(302);
