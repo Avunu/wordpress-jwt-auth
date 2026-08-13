@@ -4,22 +4,23 @@ import type { LoginFlow, MintedCode } from "../flow-do";
 import type { FlowContext } from "../schemas";
 import type { Tenant } from "../tenant";
 import { AuthorizeForm, AuthorizeParams } from "../schemas";
-import {
-	FLOW_COOKIE,
-	clientIp,
-	getCookie,
-	readForm,
-	redirect,
-	setCookie,
-	underLimit,
-} from "../lib/http";
+import { REDIRECT_HEADER } from "../client";
+import { FLOW_COOKIE, clientIp, getCookie, readForm, setCookie, underLimit } from "../lib/http";
 import { getFlowStub } from "../lib/flow";
 import { SSO_COOKIE, linkSession, readSession, startSession } from "../lib/session";
 import { generateMagicToken, generatePin, hashSecret } from "../lib/otp";
 import { randomHex, sha256Hex } from "../lib/util";
 import { verifyTurnstile } from "../lib/turnstile";
 import { sendLoginEmail } from "../lib/email";
-import { continuePage, emailFormPage, errorPage, pinFormPage } from "../ui";
+import type { Screen } from "../ui";
+import {
+	continuePage,
+	emailFormPage,
+	errorPage,
+	pinFormPage,
+	redirectResponse,
+	respond,
+} from "../ui";
 
 /**
  * The cookie deliberately outlives the flow it points at. If both expire together, a user who takes
@@ -42,10 +43,13 @@ export async function handleAuthorizeGet(
 	const url = new URL(request.url);
 	const parsed = AuthorizeParams.safeParse(Object.fromEntries(url.searchParams));
 	if (!parsed.success) {
-		return errorPage({
-			title: "Invalid sign-in request",
-			message: "The sign-in link was malformed. Please return to the site and try again.",
-		});
+		return respond(
+			request,
+			errorPage({
+				title: "Invalid sign-in request",
+				message: "The sign-in link was malformed. Please return to the site and try again.",
+			}),
+		);
 	}
 	const p = parsed.data;
 
@@ -54,11 +58,7 @@ export async function handleAuthorizeGet(
 	// same answer: this request is not authorised.
 	const tenant = config.tenants.get(p.client_id);
 	if (!tenant || !tenant.redirectUris.includes(p.redirect_uri)) {
-		return errorPage({
-			title: "Unrecognised sign-in request",
-			message: "This sign-in request is not authorised for this provider.",
-			status: 400,
-		});
+		return respond(request, unrecognisedRequest());
 	}
 
 	const flowId = randomHex(16);
@@ -78,15 +78,18 @@ export async function handleAuthorizeGet(
 	// A site this browser has signed into before: nothing left to prove, mint and go.
 	if (session?.linkedTenants.includes(tenant.clientId)) {
 		const minted = await stub.createAndComplete(context, session.email);
-		return finishRedirect(minted, [session.cookie]);
+		return finishRedirect(request, minted, [session.cookie]);
 	}
 
 	await stub.create(context);
 
 	// A live session meeting a new site: confirm rather than silently create an account there.
-	const res = session
-		? continuePage({ tenant, email: session.email })
-		: emailFormPage({ tenant, siteKey: config.provider.turnstileSiteKey });
+	const res = respond(
+		request,
+		session
+			? continuePage({ tenant, email: session.email })
+			: emailFormPage({ tenant, siteKey: config.provider.turnstileSiteKey }),
+	);
 	res.headers.append("Set-Cookie", setCookie(FLOW_COOKIE, flowId, FLOW_COOKIE_TTL_SECONDS));
 	if (session) {
 		res.headers.append("Set-Cookie", session.cookie);
@@ -117,7 +120,7 @@ export async function handleAuthorizePost(
 					.filter(Boolean),
 			}),
 		);
-		return sessionExpired();
+		return respond(request, sessionExpired());
 	}
 
 	const stub = getFlowStub(env, flowId);
@@ -125,28 +128,30 @@ export async function handleAuthorizePost(
 	if (!context) {
 		// Age separates "expired naturally" from "vanished early", which would mean a bug.
 		console.log(JSON.stringify({ event: "flow_not_found_or_expired" }));
-		return sessionExpired();
+		return respond(request, sessionExpired());
 	}
 
 	// The tenant comes from the flow the cookie points at, never from the submitted form.
 	const tenant = config.tenants.get(context.clientId);
 	if (!tenant) {
-		return errorPage({
-			title: "Unrecognised sign-in request",
-			message: "This sign-in request is not authorised for this provider.",
-			status: 400,
-		});
+		return respond(request, unrecognisedRequest());
 	}
 
 	const res = await routeAuthorizeForm(request, env, config, stub, flowId, tenant);
 
 	// Any page that leaves the flow open re-issues the handle, so the browser's copy is refreshed
 	// from the last interaction rather than counting down from the initial page load. A completed
-	// flow answers with a 302 and leaves its cookie untouched, to expire with the flow.
-	if (res.status !== 302) {
+	// flow leaves its cookie untouched, to expire with the flow — it answers with either a 302 or,
+	// for an enhanced request, a 200 carrying the target in a header.
+	if (!isCompletion(res)) {
 		res.headers.append("Set-Cookie", setCookie(FLOW_COOKIE, flowId, FLOW_COOKIE_TTL_SECONDS));
 	}
 	return res;
+}
+
+/** True for the two shapes a finished sign-in can take. */
+function isCompletion(res: Response): boolean {
+	return res.status === 302 || res.headers.has(REDIRECT_HEADER);
 }
 
 async function routeAuthorizeForm(
@@ -159,12 +164,15 @@ async function routeAuthorizeForm(
 ): Promise<Response> {
 	const form = AuthorizeForm.safeParse(await readForm(request));
 	if (!form.success) {
-		return emailFormPage({
-			tenant,
-			siteKey: config.provider.turnstileSiteKey,
-			error: "Please check your details and try again.",
-			status: 400,
-		});
+		return respond(
+			request,
+			emailFormPage({
+				tenant,
+				siteKey: config.provider.turnstileSiteKey,
+				error: "Please check your details and try again.",
+				status: 400,
+			}),
+		);
 	}
 
 	switch (form.data.action) {
@@ -185,13 +193,13 @@ async function routeAuthorizeForm(
 			// Nothing is sent; a later request_code overwrites the challenge and resets attempts.
 			// Reached both from the PIN step and from the SSO confirmation, which is the only way to
 			// sign in as somebody else without first signing out.
-			return emailFormPage({ tenant, siteKey: config.provider.turnstileSiteKey });
+			return respond(request, emailFormPage({ tenant, siteKey: config.provider.turnstileSiteKey }));
 		}
 		case "continue_sso": {
 			return continueSso(request, env, config, stub, tenant);
 		}
 		default: {
-			return verifyCode(env, config, stub, flowId, tenant, form.data.pin);
+			return verifyCode(request, env, config, stub, flowId, tenant, form.data.pin);
 		}
 	}
 }
@@ -208,7 +216,7 @@ async function requestCode(
 ): Promise<Response> {
 	const { provider } = config;
 	const renderError = (error: string, status = 400): Response =>
-		emailFormPage({ tenant, siteKey: provider.turnstileSiteKey, error, status });
+		respond(request, emailFormPage({ tenant, siteKey: provider.turnstileSiteKey, error, status }));
 
 	const human = await verifyTurnstile(
 		turnstileToken,
@@ -237,7 +245,7 @@ async function requestCode(
 	]);
 	const stored = await stub.setChallenge(email, pinHash, magicHash);
 	if (!stored) {
-		return sessionExpired();
+		return respond(request, sessionExpired());
 	}
 
 	const magicUrl = `${provider.issuer}/magic?flow=${encodeURIComponent(flowId)}&token=${encodeURIComponent(magicToken)}`;
@@ -259,10 +267,14 @@ async function requestCode(
 		return renderError("We couldn't send the email right now. Please try again.", 502);
 	}
 
-	return pinFormPage({ tenant, email, notice: "Check your inbox for the 6-digit code." });
+	return respond(
+		request,
+		pinFormPage({ tenant, email, notice: "Check your inbox for the 6-digit code." }),
+	);
 }
 
 async function verifyCode(
+	request: Request,
 	env: AuthWorkerEnv,
 	config: WorkerConfig,
 	stub: FlowStub,
@@ -274,39 +286,49 @@ async function verifyCode(
 	const result = await stub.verifyPin(submittedHash);
 
 	if (result.ok) {
-		return completeSignIn(env, config.provider, tenant, result);
+		return completeSignIn(request, env, config.provider, tenant, result);
 	}
 
 	switch (result.reason) {
 		case "already_used": {
-			return alreadyUsed(tenant);
+			return respond(request, alreadyUsed(tenant));
 		}
 		case "invalid": {
-			return pinFormPage({
-				tenant,
-				email: "your email",
-				error: "That code is incorrect. Please try again.",
-				status: 401,
-			});
+			return respond(
+				request,
+				pinFormPage({
+					tenant,
+					email: "your email",
+					error: "That code is incorrect. Please try again.",
+					status: 401,
+				}),
+			);
 		}
 		case "locked": {
-			return errorPage({
-				title: "Too many attempts",
-				message: "You've entered the wrong code too many times. Return to the site to start over.",
-				status: 429,
-				tenant,
-			});
+			return respond(
+				request,
+				errorPage({
+					title: "Too many attempts",
+					message:
+						"You've entered the wrong code too many times. Return to the site to start over.",
+					status: 429,
+					tenant,
+				}),
+			);
 		}
 		case "expired": {
-			return errorPage({
-				title: "Code expired",
-				message: "That code has expired. Return to the site and sign in again.",
-				status: 410,
-				tenant,
-			});
+			return respond(
+				request,
+				errorPage({
+					title: "Code expired",
+					message: "That code has expired. Return to the site and sign in again.",
+					status: 410,
+					tenant,
+				}),
+			);
 		}
 		default: {
-			return sessionExpired();
+			return respond(request, sessionExpired());
 		}
 	}
 }
@@ -326,14 +348,14 @@ async function continueSso(
 	if (!linked) {
 		// The session lapsed between rendering the page and the click. Ask for an email instead of
 		// failing: the flow itself is still good.
-		return emailFormPage({ tenant, siteKey: config.provider.turnstileSiteKey });
+		return respond(request, emailFormPage({ tenant, siteKey: config.provider.turnstileSiteKey }));
 	}
 
 	const result = await stub.completeWithIdentity(linked.email);
 	if (!result.ok) {
-		return sessionExpired();
+		return respond(request, sessionExpired());
 	}
-	return finishRedirect(result, [linked.cookie]);
+	return finishRedirect(request, result, [linked.cookie]);
 }
 
 /**
@@ -341,13 +363,14 @@ async function continueSso(
  * the SSO session begins and every other site in the fleet becomes a one-click sign-in.
  */
 export async function completeSignIn(
+	request: Request,
 	env: AuthWorkerEnv,
 	provider: ProviderConfig,
 	tenant: Tenant,
 	minted: MintedCode,
 ): Promise<Response> {
 	const cookie = await startSession(env, provider, minted.email, tenant.clientId);
-	return finishRedirect(minted, cookie ? [cookie] : []);
+	return finishRedirect(request, minted, cookie ? [cookie] : []);
 }
 
 /**
@@ -363,22 +386,30 @@ export async function completeSignIn(
  * to something that can no longer be exchanged for anything. It expires with the flow, and the next
  * /authorize overwrites it.
  */
-export function finishRedirect(minted: MintedCode, extraCookies: readonly string[] = []): Response {
+export function finishRedirect(
+	request: Request,
+	minted: MintedCode,
+	extraCookies: readonly string[] = [],
+): Response {
 	const target = new URL(minted.redirectUri);
 	target.searchParams.set("code", minted.code);
 	target.searchParams.set("state", minted.state);
-	// Built header-by-header because a Response carries multiple Set-Cookie values only via append.
-	const res = redirect(target.toString());
-	for (const cookie of extraCookies) {
-		res.headers.append("Set-Cookie", cookie);
-	}
-	return res;
+	return redirectResponse(request, target.toString(), extraCookies);
 }
 
-function sessionExpired(): Response {
+function sessionExpired(): Screen {
 	return errorPage({
 		title: "Sign-in session expired",
 		message: "This sign-in session has expired. Please return to the site and try again.",
+		status: 400,
+	});
+}
+
+/** The same answer for an unknown client and for a tenant that has since left the registry. */
+function unrecognisedRequest(): Screen {
+	return errorPage({
+		title: "Unrecognised sign-in request",
+		message: "This sign-in request is not authorised for this provider.",
 		status: 400,
 	});
 }
@@ -388,7 +419,7 @@ function sessionExpired(): Response {
  * so the honest thing to tell them is that it worked the first time — not that their code is
  * wrong.
  */
-export function alreadyUsed(tenant: Tenant): Response {
+export function alreadyUsed(tenant: Tenant): Screen {
 	return errorPage({
 		title: "You're already signed in",
 		message: `That code has already been used, and the sign-in it belongs to went through. Return to ${tenant.displayName} — you should find yourself signed in.`,

@@ -3,8 +3,18 @@ import type { AuthWorkerEnv } from "../env";
 import { getFlowStub } from "../lib/flow";
 import { hashSecret } from "../lib/otp";
 import { readForm } from "../lib/http";
-import { magicConfirmPage, errorPage } from "../ui";
+import { magicConfirmPage, errorPage, respond } from "../ui";
 import { alreadyUsed, completeSignIn } from "./authorize";
+
+/** Every dead end on this endpoint says the same thing: the link is no longer good. */
+function linkExpired(tenant: Parameters<typeof alreadyUsed>[0] | null = null) {
+	return errorPage({
+		title: "Link expired",
+		message: "This sign-in link has expired. Return to the site and try again.",
+		status: 410,
+		tenant,
+	});
+}
 
 /**
  * GET /magic — render the confirm page ONLY. It never consumes the token, so an email security
@@ -20,20 +30,22 @@ export async function handleMagicGet(
 	const flow = url.searchParams.get("flow");
 	const token = url.searchParams.get("token");
 	if (!flow || !token) {
-		return errorPage({ title: "Invalid link", message: "This sign-in link is incomplete." });
+		return respond(
+			request,
+			errorPage({ title: "Invalid link", message: "This sign-in link is incomplete." }),
+		);
 	}
 
 	// Confirm the flow is still alive so we don't present a dead confirm page.
 	const context = await getFlowStub(env, flow).getContext();
 	if (!context) {
-		return errorPage({
-			title: "Link expired",
-			message: "This sign-in link has expired. Return to the site and try again.",
-			status: 410,
-		});
+		return respond(request, linkExpired());
 	}
 
-	return magicConfirmPage({ tenant: config.tenants.get(context.clientId), flow, token });
+	return respond(
+		request,
+		magicConfirmPage({ tenant: config.tenants.get(context.clientId), flow, token }),
+	);
 }
 
 /**
@@ -52,56 +64,56 @@ export async function handleMagicPost(
 	const { flow } = form;
 	const { token } = form;
 	if (!flow || !token) {
-		return errorPage({ title: "Invalid link", message: "This sign-in link is incomplete." });
+		return respond(
+			request,
+			errorPage({ title: "Invalid link", message: "This sign-in link is incomplete." }),
+		);
 	}
 
 	const stub = getFlowStub(env, flow);
 	const context = await stub.getContext();
 	const tenant = context ? config.tenants.get(context.clientId) : null;
 	if (!tenant) {
-		return errorPage({
-			title: "Link expired",
-			message: "This sign-in link has expired. Return to the site and try again.",
-			status: 410,
-		});
+		return respond(request, linkExpired());
 	}
 
 	const submittedHash = await hashSecret(token, flow);
 	const result = await stub.verifyMagic(submittedHash);
 
 	if (result.ok) {
-		return completeSignIn(env, config.provider, tenant, result);
+		return completeSignIn(request, env, config.provider, tenant, result);
 	}
 
 	switch (result.reason) {
 		case "already_used": {
 			// Clicking the link a second time, or a mail client that pre-fetched and then the human
 			// clicked. The sign-in already happened; say so instead of implying the link is broken.
-			return alreadyUsed(tenant);
+			return respond(request, alreadyUsed(tenant));
 		}
 		case "expired": {
-			return errorPage({
-				title: "Link expired",
-				message: "This sign-in link has expired. Return to the site and try again.",
-				status: 410,
-				tenant,
-			});
+			return respond(request, linkExpired(tenant));
 		}
 		case "locked": {
-			return errorPage({
-				title: "Too many attempts",
-				message: "Return to the site to start over.",
-				status: 429,
-				tenant,
-			});
+			return respond(
+				request,
+				errorPage({
+					title: "Too many attempts",
+					message: "Return to the site to start over.",
+					status: 429,
+					tenant,
+				}),
+			);
 		}
 		default: {
-			return errorPage({
-				title: "Invalid link",
-				message: "This sign-in link is no longer valid. Return to the site and try again.",
-				status: 400,
-				tenant,
-			});
+			return respond(
+				request,
+				errorPage({
+					title: "Invalid link",
+					message: "This sign-in link is no longer valid. Return to the site and try again.",
+					status: 400,
+					tenant,
+				}),
+			);
 		}
 	}
 }
