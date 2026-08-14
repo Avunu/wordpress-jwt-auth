@@ -1,5 +1,17 @@
 # Changelog
 
+## [4.0.0](https://github.com/Avunu/wordpress-jwt-auth/compare/jwt-auth-worker-v3.0.0...jwt-auth-worker-v4.0.0) (2026-08-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* POST /authorize now requires a `flow` field matching the flow cookie, and rejects a non-empty client_secret. Sign-ins already on screen across the deploy must be reloaded.
+
+### Bug Fixes
+
+* close five findings from the security audit ([c00c111](https://github.com/Avunu/wordpress-jwt-auth/commit/c00c1115846ecb07fc27dac7b7baff7e9cac37c1))
+* require a verified address to adopt an account, and cap PIN guessing per identity ([c3d764d](https://github.com/Avunu/wordpress-jwt-auth/commit/c3d764dbb7aece91772712c4964d6e2c7db87854))
+
 ## [3.0.0](https://github.com/Avunu/wordpress-jwt-auth/compare/jwt-auth-worker-v2.0.0...jwt-auth-worker-v3.0.0) (2026-08-13)
 
 
