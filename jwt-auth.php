@@ -38,12 +38,14 @@
  *   define('JWT_AUTH_LOGOUT_URL',   '...');  // provider logout URL (optional)
  *
  * --- User creation -----------------------------------------------------------
- * Whether accounts are created at all follows WordPress's own
- * Settings > General > Membership > "Anyone can register" — not a constant. Untick it and
- * the provider can authenticate whoever it likes without a WordPress account being minted.
- * Note WordPress ships that box unticked.
+ * Neither whether accounts are created nor what they can do is a constant — both follow
+ * WordPress's own Settings > General:
  *
- *   define('JWT_AUTH_DEFAULT_ROLE',     'subscriber');  // default
+ *   Membership > "Anyone can register"  — untick it and the provider can authenticate
+ *     whoever it likes without a WordPress account being minted. WordPress ships it unticked.
+ *   "New User Default Role"             — the role a newly provisioned account receives,
+ *     exactly as for any other registration path on the site.
+ *
  *   define('JWT_AUTH_CLAIM_EMAIL',      'email');
  *   define('JWT_AUTH_CLAIM_FIRST_NAME', 'given_name');
  *   define('JWT_AUTH_CLAIM_LAST_NAME',  'family_name');

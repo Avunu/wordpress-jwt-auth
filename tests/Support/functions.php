@@ -265,6 +265,7 @@ function get_option(string $option, mixed $default = false): mixed
 {
     return match ($option) {
         'users_can_register' => WpState::$usersCanRegister,
+        'default_role'       => WpState::$defaultRole,
         default => $default,
     };
 }
@@ -372,11 +373,17 @@ function wp_create_user(string $login, string $password, string $email = ''): in
         // the row now exists *and* our own create fails. A test that only returned the error would
         // not exercise the recovery lookup that follows.
         WpState::$failNextCreateUser = false;
-        WpState::addUser($address);
+        $raced = WpState::addUser($address);
+        $raced->role = (string) get_option('default_role');
         return new WP_Error('existing_user_email', 'Sorry, that email address is already used!');
     }
 
-    return WpState::addUser($address)->ID;
+    $user = WpState::addUser($address);
+    // wp_insert_user() applies Settings → General → "New User Default Role" on every insert that
+    // does not name a role (wp-includes/user.php:2659-2663). The plugin relies on that rather than
+    // setting one itself, so the fake has to do it too or the role would read as empty.
+    $user->role = (string) get_option('default_role');
+    return $user->ID;
 }
 
 /** @param array<string, mixed> $data */
