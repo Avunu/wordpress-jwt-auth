@@ -26,11 +26,23 @@ export default defineConfig(async () => {
 						TENANTS: JSON.stringify(TENANTS),
 						FROM_EMAIL: "login@auth.test",
 						FROM_NAME: "Test Sign-in",
-						// Turnstile is never contacted: no test exercises the email-send step, which is
-						// the only place it gates.
 						TURNSTILE_SITE_KEY: "1x00000000000000000000AA",
 						TURNSTILE_SECRET_KEY: "1x0000000000000000000000000000000AA",
 						SIGNING_KEY: await exportPKCS8(privateKey),
+					},
+					// The worker makes exactly one kind of outbound request — Turnstile siteverify — and
+					// verifyTurnstile fails closed on any transport error, so without this the sandbox's
+					// inability to reach Cloudflare would make every request_code test a 403 about
+					// verification rather than a test of what it means to test. Answering "success" here
+					// puts the human check out of the way so the code *after* it can be exercised.
+					// Anything else outbound is refused rather than allowed through: a test that starts
+					// depending on the network should fail loudly.
+					outboundService(request: Request): Response {
+						const url = new URL(request.url);
+						if (url.hostname === "challenges.cloudflare.com") {
+							return Response.json({ success: true });
+						}
+						return new Response(`unexpected outbound request to ${url.href}`, { status: 502 });
 					},
 				},
 			}),

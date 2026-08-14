@@ -67,7 +67,22 @@ final class OidcClient
         $redirectTo = sanitize_url($_REQUEST['redirect_to'] ?? Config::redirect());
         $state      = self::generateState($redirectTo);
         $challenge  = self::generatePkce($state);
-        $doc        = self::discover();
+
+        // Discovery is a live HTTP call to the provider, on an endpoint anyone can reach without
+        // authenticating. Letting it throw turns "the IdP is briefly unreachable" into an uncaught
+        // exception on wp-login.php — a 500, or with display_errors on, a stack trace carrying
+        // absolute filesystem paths to any passer-by.
+        //
+        // Returning instead lets wp-login.php render its ordinary form. That is safe here precisely
+        // because it is not the only defence: Validator::blockDirectAuth() still refuses every
+        // username/password submission, so the fallback is a login page that cannot log anyone in,
+        // rather than a way around SSO.
+        try {
+            $doc = self::discover();
+        } catch (\RuntimeException $e) {
+            error_log('JWT Auth: OIDC discovery failed on login, falling through: ' . $e->getMessage());
+            return;
+        }
 
         wp_redirect($doc['authorization_endpoint'] . '?' . http_build_query([
             'response_type'         => 'code',

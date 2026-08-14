@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace JwtAuth\Tests\Unit;
 
 use JwtAuth\AuthMode;
+use JwtAuth\Claims;
 use JwtAuth\Config;
 use JwtAuth\Tests\Support\WordPressTestCase;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\PreserveGlobalState;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 
 /**
  * Constants are process-global and cannot be redefined, so the bootstrap defines only ISSUER and
@@ -47,6 +50,34 @@ final class ConfigTest extends WordPressTestCase
     public function test_user_creation_defaults(): void
     {
         $this->assertSame('subscriber', Config::defaultRole());
+    }
+
+    public function test_verified_email_is_not_demanded_by_default(): void
+    {
+        // Default-off keeps every provider that omits `email_verified` working, including tokens
+        // minted before the claim existed. The strict behaviour is opt-in, below.
+        $this->assertFalse(Config::requireVerifiedEmail());
+    }
+
+    /**
+     * Defining the constant is irreversible within a process, so this one runs in its own — the
+     * alternative is a test that silently changes the meaning of every test after it.
+     */
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function test_opting_in_makes_an_unstated_address_unadoptable(): void
+    {
+        define('JWT_AUTH_REQUIRE_VERIFIED_EMAIL', true);
+
+        $this->assertTrue(Config::requireVerifiedEmail());
+
+        // The point of the switch: on an IdP that may assert addresses it never checked, silence is
+        // no longer good enough to claim an existing WordPress account.
+        $unstated = new Claims(email: 'a@b.test', sub: 's', emailVerified: null);
+        $this->assertFalse($unstated->emailIsAdoptable());
+
+        $verified = new Claims(email: 'a@b.test', sub: 's', emailVerified: true);
+        $this->assertTrue($verified->emailIsAdoptable());
     }
 
     public function test_claim_names_default_to_the_standard_oidc_set(): void

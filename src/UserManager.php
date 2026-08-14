@@ -31,9 +31,18 @@ final class UserManager
             return $users[0];
         }
 
-        // 2. Look up by email
+        // 2. Look up by email — but only if the provider stands behind the address.
+        //
+        // This branch hands over an existing account, with whatever roles it already has, on the
+        // strength of an asserted address. On an IdP with self-service signup, an attacker who
+        // registers with the victim's address and never confirms it would otherwise be grafted
+        // straight onto the victim's WordPress account. The subject branch above is unaffected:
+        // that binding was established by a previous successful sign-in.
         $user = get_user_by('email', $claims->email);
         if ($user instanceof \WP_User) {
+            if (!$claims->emailIsAdoptable()) {
+                return null;
+            }
             update_user_meta($user->ID, 'jwt_auth_sub', $claims->sub);
             self::syncProfile($user, $claims);
             return $user;

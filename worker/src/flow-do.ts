@@ -11,6 +11,8 @@ const MAX_ATTEMPTS = 5;
 /** Persisted flow state (single storage key). Written only by this DO, so trusted. */
 interface StoredFlow extends FlowContext {
 	email: string | null;
+	/** Sha256 hex of `email`, kept alongside it so a failed guess can be attributed without it. */
+	emailHash: string | null;
 	pinHash: string | null;
 	magicHash: string | null;
 	pinExpiresAt: number;
@@ -32,9 +34,20 @@ export interface MintedCode {
 	email: string;
 }
 
+export type VerifyFailure = "not_found" | "expired" | "locked" | "invalid" | "already_used";
+
 export type VerifyResult =
 	| ({ ok: true } & MintedCode)
-	| { ok: false; reason: "not_found" | "expired" | "locked" | "invalid" | "already_used" };
+	| {
+			ok: false;
+			reason: VerifyFailure;
+			/**
+			 * Sha256 hex of the flow's address, present once a challenge has been set. It lets the caller
+			 * count this failure against the identity — across every flow that identity opens — while
+			 * still never learning the address behind a wrong guess.
+			 */
+			emailHash?: string;
+	  };
 
 export type ConsumeResult =
 	| { ok: true; identity: Identity; codeChallenge: string; clientId: string }
@@ -47,6 +60,7 @@ function blankFlow(context: FlowContext): StoredFlow {
 	return {
 		...context,
 		email: null,
+		emailHash: null,
 		pinHash: null,
 		magicHash: null,
 		pinExpiresAt: 0,
@@ -91,6 +105,7 @@ export class LoginFlow extends DurableObject<AuthWorkerEnv> {
 		return this.ctx.blockConcurrencyWhile(async () => {
 			const record = blankFlow(context);
 			record.email = email;
+			record.emailHash = await sha256Hex(email);
 			const code = this.mintCode(record, Date.now());
 			await this.ctx.storage.put(KEY, record);
 			await this.ctx.storage.setAlarm(context.createdAt + FLOW_TTL_MS);
@@ -110,6 +125,7 @@ export class LoginFlow extends DurableObject<AuthWorkerEnv> {
 				return { ok: false, reason: "expired" };
 			}
 			r.email = email;
+			r.emailHash = await sha256Hex(email);
 			const code = this.mintCode(r, now);
 			await this.ctx.storage.put(KEY, r);
 			return { ok: true, code, redirectUri: r.redirectUri, state: r.wpState, email };
@@ -144,6 +160,7 @@ export class LoginFlow extends DurableObject<AuthWorkerEnv> {
 				return false;
 			}
 			r.email = email;
+			r.emailHash = await sha256Hex(email);
 			r.pinHash = pinHash;
 			r.magicHash = magicHash;
 			r.pinExpiresAt = Date.now() + PIN_TTL_MS;
@@ -175,21 +192,27 @@ export class LoginFlow extends DurableObject<AuthWorkerEnv> {
 			return { ok: false, reason: "not_found" };
 		}
 
+		// Every failure below carries the identity hash when the flow has one, so the caller can hold
+		// this attempt against the address rather than against the flow — a fresh flow being exactly
+		// how an attacker resets the per-challenge attempt counter.
+		const fail = (reason: VerifyFailure): VerifyResult =>
+			r.emailHash === null ? { ok: false, reason } : { ok: false, reason, emailHash: r.emailHash };
+
 		// A completed flow keeps its code and drops both challenges. Presenting the same PIN again is
 		// therefore not a wrong guess — it is the same person submitting twice, whether because they
 		// double-clicked or because they came back to the page after signing in. Answering before the
 		// expiry and attempt checks matters: this must neither be reported as an incorrect code nor
 		// burn one of the five attempts.
 		if (r.code !== null && r.pinHash === null && r.magicHash === null) {
-			return { ok: false, reason: "already_used" };
+			return fail("already_used");
 		}
 
 		const now = Date.now();
 		if (now > r.createdAt + FLOW_TTL_MS || now > r.pinExpiresAt) {
-			return { ok: false, reason: "expired" };
+			return fail("expired");
 		}
 		if (r.attempts >= MAX_ATTEMPTS) {
-			return { ok: false, reason: "locked" };
+			return fail("locked");
 		}
 
 		const stored = kind === "pin" ? r.pinHash : r.magicHash;
@@ -198,12 +221,12 @@ export class LoginFlow extends DurableObject<AuthWorkerEnv> {
 		if (!matches) {
 			r.attempts += 1;
 			await this.ctx.storage.put(KEY, r);
-			return { ok: false, reason: "invalid" };
+			return fail("invalid");
 		}
 
 		// Unreachable: a challenge only exists because setChallenge stored one alongside an email.
 		if (!r.email) {
-			return { ok: false, reason: "not_found" };
+			return fail("not_found");
 		}
 
 		const code = this.mintCode(r, now);

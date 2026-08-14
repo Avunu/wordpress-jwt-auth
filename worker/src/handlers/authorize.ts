@@ -9,6 +9,7 @@ import { FLOW_COOKIE, clientIp, getCookie, readForm, setCookie, underLimit } fro
 import { getFlowStub } from "../lib/flow";
 import { SSO_COOKIE, linkSession, readSession, startSession } from "../lib/session";
 import { generateMagicToken, generatePin, hashSecret } from "../lib/otp";
+import { guardCheck, guardFailure, guardSuccess, retryMinutes } from "../lib/guard";
 import { randomHex, sha256Hex } from "../lib/util";
 import { verifyTurnstile } from "../lib/turnstile";
 import { sendLoginEmail } from "../lib/email";
@@ -261,6 +262,18 @@ async function requestCode(
 		return renderError("Too many requests. Please wait a minute and try again.", 429);
 	}
 
+	// An address under a guessing attack must stop being *issued* codes, not merely stop being
+	// guessable. This is the load-bearing half of the guard: LoginFlow caps attempts per challenge,
+	// so refusing to mint new challenges is what turns that per-flow cap into a real ceiling on the
+	// total number of guesses. It also stops the victim's inbox being the attack's delivery vehicle.
+	const guard = await guardCheck(env, emailHash);
+	if (guard.locked) {
+		return renderError(
+			`Too many failed sign-in attempts for this address. Try again in about ${retryMinutes(guard)} minute(s).`,
+			429,
+		);
+	}
+
 	const pin = generatePin();
 	const magicToken = generateMagicToken();
 	const [pinHash, magicHash] = await Promise.all([
@@ -310,6 +323,9 @@ async function verifyCode(
 	const result = await stub.verifyPin(submittedHash);
 
 	if (result.ok) {
+		// Proof of possession ends the run outright, so a person who fumbles a few codes and then gets
+		// one right does not carry that history into their next sign-in.
+		await guardSuccess(env, await sha256Hex(result.email));
 		return completeSignIn(request, env, config.provider, tenant, result);
 	}
 
@@ -318,6 +334,14 @@ async function verifyCode(
 			return respond(request, alreadyUsed(tenant));
 		}
 		case "invalid": {
+			// Counted against the address, not the flow: opening a new flow is precisely how an
+			// attacker resets LoginFlow's five-attempt counter, and the guard is what survives that.
+			const verdict = result.emailHash
+				? await guardFailure(env, result.emailHash)
+				: { locked: false, retryAfterMs: 0 };
+			if (verdict.locked) {
+				return respond(request, identityLocked(tenant, retryMinutes(verdict)));
+			}
 			return respond(
 				request,
 				pinFormPage({
@@ -445,6 +469,20 @@ function flowSuperseded(): Screen {
 		message:
 			"Another sign-in was started in this browser, so this page is out of date. Return to the site and sign in again.",
 		status: 400,
+	});
+}
+
+/**
+ * Too many wrong codes for this address, counted across every flow it has opened. Deliberately says
+ * "this address" rather than naming it: the page is reachable by anyone holding the flow cookie,
+ * and the address behind a flow is never echoed back to a failed guess.
+ */
+export function identityLocked(tenant: Tenant, minutes: number): Screen {
+	return errorPage({
+		title: "Too many attempts",
+		message: `Too many incorrect codes have been entered for this address. Please wait about ${minutes} minute(s) and start again from ${tenant.displayName}.`,
+		status: 429,
+		tenant,
 	});
 }
 

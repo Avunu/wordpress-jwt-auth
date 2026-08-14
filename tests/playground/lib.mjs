@@ -22,7 +22,7 @@ export const MARKER_CLASS = "jwt-auth-sso";
  * the JWT Auth constants defined by an mu-plugin.
  *
  * Note what is deliberately absent: the `login` step. Validator::blockDirectAuth() filters
- * `authenticate` at priority 1 and returns WP_Error for every username/password attempt, so
+ * `authenticate` at priority 30 and returns WP_Error for every username/password attempt, so
  * playground's auto-login cannot succeed once this plugin is active — and would fail in a way that
  * reads as a harness bug rather than the plugin working as designed. Every assertion here is about
  * the logged-out My Account page anyway, which is the only state that renders a login form.

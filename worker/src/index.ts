@@ -13,6 +13,7 @@ import { handleLogout } from "./handlers/logout";
 // bind them), and the config contracts.
 export { LoginFlow } from "./flow-do";
 export { UserSession } from "./session-do";
+export { LoginGuard } from "./guard-do";
 export { Tenant, TenantRegistry } from "./tenant";
 export type { AuthWorkerEnv } from "./env";
 export type { ProviderConfig, WorkerConfig } from "./config";
@@ -74,7 +75,7 @@ export interface AuthWorkerOptions {
  *
  * ```ts
  * import tenants from "./tenants.json";
- * export { LoginFlow, UserSession } from "@avunu/jwt-auth-worker";
+ * export { LoginFlow, UserSession, LoginGuard } from "@avunu/jwt-auth-worker";
  * export default createAuthWorker({ tenants });
  * ```
  */

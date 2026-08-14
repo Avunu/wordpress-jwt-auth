@@ -23,8 +23,15 @@ final class UserManagerTest extends WordPressTestCase
         string $sub = 'pin:abc',
         string $first = '',
         string $last = '',
+        ?bool $emailVerified = null,
     ): Claims {
-        return new Claims(email: $email, sub: $sub, firstName: $first, lastName: $last);
+        return new Claims(
+            email: $email,
+            sub: $sub,
+            firstName: $first,
+            lastName: $last,
+            emailVerified: $emailVerified,
+        );
     }
 
     public function test_finds_an_existing_user_by_subject(): void
@@ -93,6 +100,60 @@ final class UserManagerTest extends WordPressTestCase
 
         $this->assertSame('user@example.test', $found->user_email);
         $this->assertCount(1, WpState::$users);
+    }
+
+    // ---------------------------------------------------------------------
+    // Adoption by email requires an address the provider stands behind
+    // ---------------------------------------------------------------------
+
+    public function test_refuses_to_hand_over_an_existing_account_on_an_unverified_address(): void
+    {
+        // The account-takeover this guards. On any IdP with self-service signup an attacker can
+        // register with the victim's address and never confirm it; without this check the email
+        // fallback grafts them straight onto the victim's WordPress account, roles and all.
+        $victim = WpState::addUser('user@example.test');
+        $victim->role = 'administrator';
+
+        $found = UserManager::findOrCreate($this->claims(sub: 'pin:attacker', emailVerified: false));
+
+        $this->assertNull($found, 'an explicitly unverified address must not claim an account');
+        $this->assertArrayNotHasKey(
+            'jwt_auth_sub',
+            WpState::metaFor($victim->ID) ?? [],
+            'and it must not leave the attacker bound to the account either',
+        );
+    }
+
+    public function test_adopts_on_a_verified_address(): void
+    {
+        $legacy = WpState::addUser('user@example.test');
+
+        $found = UserManager::findOrCreate($this->claims(emailVerified: true));
+
+        $this->assertSame($legacy->ID, $found?->ID);
+    }
+
+    public function test_still_adopts_when_the_provider_omits_the_claim(): void
+    {
+        // Absent is not false. The companion worker never issues an address nobody read a PIN at,
+        // and tokens minted before the claim existed must keep working — so the default stays
+        // permissive, and sites with a riskier IdP opt in via JWT_AUTH_REQUIRE_VERIFIED_EMAIL.
+        $legacy = WpState::addUser('user@example.test');
+
+        $found = UserManager::findOrCreate($this->claims(emailVerified: null));
+
+        $this->assertSame($legacy->ID, $found?->ID);
+    }
+
+    public function test_a_known_subject_signs_in_regardless_of_the_verified_flag(): void
+    {
+        // The subject binding was established by a previous successful sign-in, so it is evidence in
+        // its own right. Only the email *fallback* rests on the provider's word about the address.
+        $existing = WpState::addUser('user@example.test', 'pin:abc');
+
+        $found = UserManager::findOrCreate($this->claims(emailVerified: false));
+
+        $this->assertSame($existing->ID, $found?->ID);
     }
 
     // ---------------------------------------------------------------------

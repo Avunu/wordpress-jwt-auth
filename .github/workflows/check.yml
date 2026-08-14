@@ -137,6 +137,8 @@ jobs:
 
       - run: npm run test:e2e
 
+      - run: npm run test:security
+
       - uses: browser-actions/setup-chrome@v2
         id: setup-chrome
 

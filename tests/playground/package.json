@@ -8,7 +8,8 @@
 		"test:assets": "node run-assets.mjs",
 		"test:e2e": "node run-e2e.mjs",
 		"test:browser": "node run-browser.mjs",
-		"test": "node run-assets.mjs && node run-e2e.mjs"
+		"test": "node run-assets.mjs && node run-e2e.mjs && node run-security.mjs",
+		"test:security": "node run-security.mjs"
 	},
 	"devDependencies": {
 		"@wp-playground/cli": "^3.1.44",

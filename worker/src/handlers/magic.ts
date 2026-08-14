@@ -111,6 +111,11 @@ export async function handleMagicPost(
 		return respond(request, linkExpired());
 	}
 
+	// Deliberately outside the LoginGuard, unlike the PIN path. The guard exists because a 6-digit
+	// code is guessable; a 256-bit magic token is not, so counting failures here would defend nothing
+	// while handing an attacker a second way to run a victim's allowance down. For the same reason a
+	// locked-out identity may still complete a link that was already sent: holding the token is proof
+	// of inbox possession, which is the very thing the lockout is protecting.
 	const submittedHash = await hashSecret(token, flow);
 	const result = await stub.verifyMagic(submittedHash);
 
