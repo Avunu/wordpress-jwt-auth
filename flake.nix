@@ -64,10 +64,18 @@
         # Browser asset dependencies                                     #
         # importNpmLock reads package-lock.json directly, so there is no #
         # npmDepsHash to bump by hand on every dependency change.        #
+        #                                                                #
+        # This must be `importNpmLock`, not its sibling `buildNodeModules`. #
+        # npmConfigHook copies $npmDeps/package-lock.json over the source #
+        # one and then runs `npm install` with offline=true, so the lock  #
+        # it is handed has to be the rewritten copy whose every `resolved` #
+        # is a file:/nix/store path. buildNodeModules emits a ready-built  #
+        # node_modules alongside the *original* lockfile, so feeding it to #
+        # the hook restores registry.npmjs.org URLs and the install dies   #
+        # with ENOTCACHED on whichever tarball npm asks for first.         #
         # -------------------------------------------------------------- #
-        npmDeps = pkgs.importNpmLock.buildNodeModules {
+        npmDeps = pkgs.importNpmLock.importNpmLock {
           npmRoot = ./.;
-          inherit nodejs;
         };
 
         # ---------------------------------------------------------------- #
