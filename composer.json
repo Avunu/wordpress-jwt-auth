@@ -2,7 +2,7 @@
     "name": "wordpress/jwt-auth",
     "description": "OIDC / proxy JWT authentication for WordPress, configured via wp-config.php",
     "type": "wordpress-plugin",
-    "version": "3.0.0",
+    "version": "4.0.0",
     "license": "MIT",
     "require": {
         "php": ">=8.4",

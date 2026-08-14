@@ -1,5 +1,30 @@
 # Changelog
 
+## [4.0.0](https://github.com/Avunu/wordpress-jwt-auth/compare/v3.0.0...v4.0.0) (2026-08-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* JWT_AUTH_DEFAULT_ROLE is no longer read. Sites that set it should copy the value into Settings > General > "New User Default Role" before updating; otherwise newly provisioned accounts take whatever that setting already says, which on most installs is `subscriber`. Existing users are unaffected — the role is only assigned at creation.
+* POST /authorize now requires a `flow` field matching the flow cookie, and rejects a non-empty client_secret. Sign-ins already on screen across the deploy must be reloaded.
+
+### Features
+
+* defer the new-user role to core's "New User Default Role" setting ([95da39b](https://github.com/Avunu/wordpress-jwt-auth/commit/95da39b735412d0c80b07a9bcbd6483db850d862))
+
+
+### Bug Fixes
+
+* **build:** hand npmConfigHook the rewritten lockfile, not a built node_modules ([d398e9d](https://github.com/Avunu/wordpress-jwt-auth/commit/d398e9d3014c3832b0ca3f2eb364a86cf26244bb))
+* close five findings from the security audit ([c00c111](https://github.com/Avunu/wordpress-jwt-auth/commit/c00c1115846ecb07fc27dac7b7baff7e9cac37c1))
+* require a verified address to adopt an account, and cap PIN guessing per identity ([c3d764d](https://github.com/Avunu/wordpress-jwt-auth/commit/c3d764dbb7aece91772712c4964d6e2c7db87854))
+* **woocommerce:** stop the SSO button rendering twice on My Account ([446fe20](https://github.com/Avunu/wordpress-jwt-auth/commit/446fe2059af0b80296e9d100fa615b69be0e6018))
+
+
+### Miscellaneous Chores
+
+* update deps ([b8cf04d](https://github.com/Avunu/wordpress-jwt-auth/commit/b8cf04d4367165307966107bf9f79b5e4b9b5e92))
+
 ## [3.0.0](https://github.com/Avunu/wordpress-jwt-auth/compare/v2.1.0...v3.0.0) (2026-08-13)
 
 
