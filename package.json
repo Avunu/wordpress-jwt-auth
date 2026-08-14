@@ -1,6 +1,6 @@
 {
 	"name": "jwt-auth",
-	"version": "4.0.0",
+	"version": "4.1.0",
 	"private": true,
 	"description": "Browser assets for the JWT Auth WordPress plugin's WooCommerce integration.",
 	"license": "MIT",

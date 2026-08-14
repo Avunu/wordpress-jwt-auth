@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.1.0](https://github.com/Avunu/wordpress-jwt-auth/compare/v4.0.0...v4.1.0) (2026-08-14)
+
+
+### Features
+
+* add JWT_AUTH_EXCLUSIVE to remove the native password forms ([b998da0](https://github.com/Avunu/wordpress-jwt-auth/commit/b998da0b00aa553b27a57d89c378c7fd6a170d53))
+* add JWT_AUTH_EXCLUSIVE to remove the native password forms ([4d87929](https://github.com/Avunu/wordpress-jwt-auth/commit/4d879291d55e318c09adab4b01dee1b6fb1335c3))
+
 ## [4.0.0](https://github.com/Avunu/wordpress-jwt-auth/compare/v3.0.0...v4.0.0) (2026-08-14)
 
 
