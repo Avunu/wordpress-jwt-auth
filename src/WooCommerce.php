@@ -16,12 +16,15 @@ namespace JwtAuth;
  * The script is the fallback for what a server-rendered hook cannot see: a login form injected
  * after the response by an AJAX-rendering theme or a modal. It skips any form that already
  * contains the marker, so on an ordinary page it adds nothing.
+ *
+ * This is the *additive* integration: a button beside the password fields, which the plugin refuses
+ * anyway. JWT_AUTH_EXCLUSIVE swaps the templates out from under WooCommerce instead, so no password
+ * field is rendered at all — see ExclusiveLogin. Both hooks below stay registered either way:
+ * renderSsoButton() then only fires for forms this plugin did not replace, which means a third
+ * party's, and the script's fallback still has late-rendered forms to reach.
  */
 final class WooCommerce
 {
-    /** Wrapper class shared by both injectors; the script uses it to detect this one. */
-    private const MARKER_CLASS = 'jwt-auth-sso';
-
     /**
      * Outputs an SSO button at the top of the classic WooCommerce login form.
      * Hooked to woocommerce_login_form_start.
@@ -35,7 +38,7 @@ final class WooCommerce
             ? (wc_get_page_permalink('myaccount') ?: home_url('/'))
             : home_url('/');
 
-        echo self::buttonHtml(wp_login_url($redirectTo));
+        echo SsoButton::html(wp_login_url($redirectTo), 'woocommerce-button button');
     }
 
     /**
@@ -81,24 +84,15 @@ final class WooCommerce
             'jwt-auth-woo',
             'window.jwtAuth = ' . wp_json_encode([
                 'loginUrl'    => wp_login_url($redirectTo),
-                'buttonLabel' => self::buttonLabel(),
+                'buttonLabel' => SsoButton::label(),
+                // Under JWT_AUTH_EXCLUSIVE the script replaces a late-rendered form's contents
+                // instead of prepending to them. Every form WooCommerce renders itself is already
+                // gone by then — ExclusiveLogin substitutes the templates — so anything the script
+                // still finds came from a theme or a modal, and prepending a button to it would
+                // reintroduce exactly the choice the switch exists to remove.
+                'exclusive'   => Config::exclusive(),
             ]) . ';',
             'before',
-        );
-    }
-
-    private static function buttonLabel(): string
-    {
-        return sprintf('Sign in with %s', Config::providerName());
-    }
-
-    private static function buttonHtml(string $url): string
-    {
-        return sprintf(
-            '<div class="%s"><a href="%s" class="woocommerce-button button">%s</a></div>',
-            esc_attr(self::MARKER_CLASS),
-            esc_url($url),
-            esc_html(self::buttonLabel()),
         );
     }
 }

@@ -43,6 +43,12 @@ final class WpState
     /** @var array<string, array<int, list<callable>>> hook => priority => callbacks */
     public static array $filters = [];
 
+    /** @var array<string, array<int, list<callable>>> hook => priority => callbacks, from add_action() */
+    public static array $addedActions = [];
+
+    /** @var list<array{hook: string, callback: string, priority: int}> every remove_action() call */
+    public static array $removedActions = [];
+
     /** @var list<array{name: string, value: string, options: array<string, mixed>}> */
     public static array $cookiesSet = [];
 
@@ -72,6 +78,15 @@ final class WpState
 
     /** Fixture plugin root with no build/ directory — a checkout that never ran the asset build. */
     public const UNBUILT_FIXTURE = __DIR__ . '/../Fixtures/';
+
+    /**
+     * The real plugin root.
+     *
+     * For the tests that must read files the plugin genuinely ships rather than a fixture —
+     * ExclusiveLogin's WooCommerce template substitution resolves paths under templates/, and a
+     * fixture would let a renamed or unshipped template pass.
+     */
+    public const PLUGIN_ROOT = __DIR__ . '/../../';
 
     public static int $currentUserId = 0;
     public static bool $loggedIn = false;
@@ -117,6 +132,8 @@ final class WpState
         self::$authCookies = [];
         self::$actions = [];
         self::$filters = [];
+        self::$addedActions = [];
+        self::$removedActions = [];
         self::$cookiesSet = [];
         self::$localizedScripts = [];
         self::$inlineScripts = [];

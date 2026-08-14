@@ -2,6 +2,8 @@
 
 A WordPress plugin that completely replaces native authentication with an external JWT provider. All login attempts are redirected to the provider; users are created on demand, with the role the site already gives new users. No admin UI — configured entirely via `wp-config.php`.
 
+Password login is refused on every path WordPress exposes. Set [`JWT_AUTH_EXCLUSIVE`](#exclusive-mode) to remove the forms that ask for one too — on a WooCommerce store, that switch also closes the flows WooCommerce uses to hand out a session without consulting the provider at all.
+
 Supports two modes:
 
 | Mode | When to use | Examples |
@@ -133,6 +135,7 @@ The worker's source lives in [`worker/`](worker/) and is published to GitHub Pac
 | JWT_AUTH_CLAIM_NAME | name | JWT claim for display name. |
 | JWT_AUTH_REDIRECT | / | Post-login redirect destination. |
 | JWT_AUTH_PROVIDER_NAME | SSO | Provider label shown in the WooCommerce sign-in button. |
+| JWT_AUTH_EXCLUSIVE | false | Remove the native password forms instead of standing beside them. See [Exclusive mode](#exclusive-mode). |
 
 * * *
 
@@ -193,6 +196,45 @@ The `authenticate` WordPress filter returns `WP_Error` for all username/password
 
 The hook runs at **priority 30**, which is the part that makes this true rather than merely intended. `authenticate` is a filter, so the login is decided by whatever the last callback returns, and WordPress core registers its own handlers at priority 20. Registered below them — as this was until v3.0.1 — the refusal was produced and then discarded by core's successful `WP_User`, leaving password login working on every path that does not pass through `wp-login.php`. If you fork this, do not "tidy" that number downwards; `tests/Unit/AuthenticateFilterTest.php` runs the real filter chain and pins both the fix and the original bug.
 
+The forms, however, stay where they were. By default the plugin refuses credentials without removing the boxes that ask for them, so My Account still shows "Username or email address" above the SSO button and the checkout still offers "Returning customer? Click here to login". [Exclusive mode](#exclusive-mode) takes them away.
+
+### Exclusive mode
+
+`define('JWT_AUTH_EXCLUSIVE', true);` makes the provider the only offer on the page rather than one of two.
+
+Most of what it does is presentational, and honestly so: a password box on a site running this plugin is a control that cannot succeed, so removing it changes what a visitor is asked, not what the site accepts. Two of the things it closes are not presentational at all, and they are the reason the switch exists rather than a stylesheet. **WooCommerce grants WordPress sessions on paths that never reach the `authenticate` filter:**
+
+-   `WC_Shortcode_My_Account::reset_password()` calls `wc_set_customer_auth_cookie()` once a new password is set. So "Lost your password?" signed a visitor in on the strength of access to an inbox, with the provider never consulted — a complete bypass of federated login, and one no amount of filtering `authenticate` touches.
+-   `WC_Form_Handler::process_registration()` does the same for the Register column, minting a password nobody can use and a session nobody asked the provider about. The checkout "create an account" checkbox and the order-confirmation "Create an account with …" block both end in the same call.
+
+What exclusive mode turns off:
+
+| Surface | What happens instead |
+| --- | --- |
+| `wp_login_form()` — any theme or plugin call | The fields are moved into an inert `<template>` and the sign-in button is rendered in their place. |
+| Core's **Login/out** block with "Display login as form" ticked | Falls back to a plain link to `wp-login.php`, which is where the provider redirect lives. |
+| `wp-login.php` sign-in, registration and password-reset screens | A notice. In OIDC mode this is only reached when the provider could not be discovered, so it says so and returns 503; in proxy mode it explains that access is managed upstream. |
+| Password reset, everywhere | `allow_password_reset` is false, so no reset key is ever issued — by core, by WooCommerce, or by an administrator's "Send password reset". |
+| WooCommerce My Account login **and** registration forms | Replaced by the sign-in button. |
+| WooCommerce checkout login prompt, and the `global/form-login.php` form behind the pay and order-received pages | Replaced by the sign-in button, still gated on WooCommerce's own "checkout login reminder" setting. |
+| WooCommerce lost-password and reset-password screens | Replaced by an explanation, and the four `WC_Form_Handler` hooks behind them are unhooked. |
+| WooCommerce checkout and order-confirmation account creation | Off (`woocommerce_checkout_registration_enabled`, `woocommerce_enable_delayed_account_creation`). New customers get an account on their first federated sign-in instead. |
+| `/wc-auth/v1/authorize` — the app-authorisation login | Replaced by the sign-in button, returning to the authorise step afterwards. WooCommerce only special-cases this screen for Jetpack SSO; every other provider got a password box. |
+
+What it deliberately leaves alone:
+
+-   Everything on `wp-login.php` that is not a login: unlocking a password-protected post, confirming a privacy request, the admin-email check, recovery mode, and **logout**. Blocking that screen wholesale is how a lockdown becomes a lockout.
+-   `WC_Form_Handler::process_login()`, which ends in `wp_signon()` and is therefore already refused. Leaving it registered means a third-party or AJAX login form that posts there still gets the "sign in with …" notice rather than appearing to do nothing.
+-   An administrator setting a user's password in wp-admin. That stays possible and stays useless, which is the correct combination.
+-   The password-change fields on WooCommerce's **Edit account** form. WooCommerce provides no hook around that fieldset and copying the template would mean tracking its name, email and billing fields forever; a password set there cannot be used to sign in.
+
+Two consequences worth knowing before you switch it on:
+
+-   Two WooCommerce settings become inert: **Accounts & Privacy → "Allow customers to create an account during checkout"** and **"…on the order confirmation page"**. They will still show as ticked in wp-admin while having no effect.
+-   If a site has guest checkout disabled, checkout now requires signing in through the provider — which is the intended reading of "registration required, passwords unavailable", but it is a change in the purchase flow.
+
+Nothing about the switch is a second line of defence for credentials: `authenticate` is still the boundary, and it is on whether or not this is set.
+
 ### WooCommerce
 
 A **"Sign in with SSO"** button is added to WooCommerce login forms, in OIDC mode only. In proxy mode users are authenticated before the page renders, so there is nothing to sign in to.
@@ -203,6 +245,8 @@ A small script (`build/woo-login.js`, built from `assets/src/`) covers only what
 
 > Both injectors mark their wrapper `.jwt-auth-sso`, and that shared class is what keeps them from colliding. Before 3.0.1 the script tracked only its own work, and prepended a second button under every server-rendered one on My Account.
 
+Under [exclusive mode](#exclusive-mode) the same two injectors do the same two jobs, one step further: PHP substitutes the templates rather than decorating them, and the script *replaces* a late-rendered form's contents rather than prepending to them. The marker guard is what makes the second safe — every form WooCommerce renders itself has already been swapped server-side and carries the class, so a form still standing when the script runs came from a theme or a modal, which is the one place a password field can survive the switch.
+
 * * *
 
 ## Security notes
@@ -212,6 +256,7 @@ A small script (`build/woo-login.js`, built from `assets/src/`) covers only what
 -   **Open redirect**: The post-login `redirect_to` value is stored server-side in the state transient and validated with `wp_validate_redirect()` on use. It is never passed through the browser.
 -   **JWKS rotation**: Keys are cached for 1 hour. A signature validation failure triggers a one-time cache refresh before failing the request, accommodating live key rotation.
 -   **Token replay**: WordPress auth cookies provide session continuity. The short-lived ID token (validated once at callback time) is not stored.
+-   **Sessions granted outside `authenticate`**: filtering `authenticate` covers every path that turns a credential into a `WP_User`, and misses every path that sets an auth cookie without one. On a WooCommerce site there are four, all reached through `wc_set_customer_auth_cookie()`: password reset, My Account registration, checkout account creation, and the order-confirmation create-account block. The first is the sharp one — anybody with access to a customer's inbox could complete WooCommerce's reset flow and be signed in, with the provider never asked. [Exclusive mode](#exclusive-mode) closes all four; without it, they remain open, so on a WooCommerce store treat `JWT_AUTH_EXCLUSIVE` as part of the security configuration rather than a cosmetic preference.
 
 * * *
 
@@ -244,16 +289,21 @@ npm test               # vitest + jsdom
 
 `build/` is generated and gitignored; `nix build .#zip` runs the bundler itself (via `importNpmLock`, so there is no dependency hash to maintain) and ships the output in the plugin zip. The version WordPress caches against is the bundle's own content hash, read from the generated `woo-login.asset.php`.
 
-Three further tests boot **real WordPress and real WooCommerce** on WASM PHP — no Docker, no database:
+Four further tests boot **real WordPress and real WooCommerce** on WASM PHP — no Docker, no database:
 
 ```bash
 npm --prefix tests/playground ci
-npm run test:assets    # the build manifest matches what enqueueAssets() requires
-npm run test:e2e       # logged-out /my-account returns exactly one button
-npm run test:browser   # headless Chrome: exactly one button after the script has run
+npm run test:assets     # the build manifest matches what enqueueAssets() requires
+npm run test:e2e        # logged-out /my-account returns exactly one button
+npm run test:browser    # headless Chrome: exactly one button after the script has run
+npm run test:exclusive  # JWT_AUTH_EXCLUSIVE, against real WooCommerce and a real HTML parser
 ```
 
-That last one earns its keep. The duplicate-button bug lived only in the post-script DOM — PHP emitted one button, the script added another, and every server-side assertion still counted one. See [`tests/playground/README.md`](tests/playground/README.md), which also documents how to reintroduce the bug and watch the checks fail.
+`test:browser` earns its keep. The duplicate-button bug lived only in the post-script DOM — PHP emitted one button, the script added another, and every server-side assertion still counted one.
+
+`test:exclusive` earns its keep for the same reason in reverse: three of its claims are about somebody else's code and cannot be made from PHP. That `<template>` renders the login fields inert is a question for an HTML5 parser. That `remove_action()` still names WooCommerce's own hooks correctly is a question for real WooCommerce — a wrong hook, method or priority returns `false` and says nothing, so the suite pairs each removal against a handler that must still be *found* the same way. And that `get_password_reset_key()` refuses is a claim about core.
+
+See [`tests/playground/README.md`](tests/playground/README.md), which also documents how to reintroduce the duplicate-button bug and watch the checks fail.
 
 * * *
 
