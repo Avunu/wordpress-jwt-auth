@@ -22,7 +22,6 @@ define('JWT_AUTH_CLIENT_ID', 'testclient');
 //   JWT_AUTH_CLIENT_SECRET  -> '' (PKCE-only public client)
 //   JWT_AUTH_JWKS_URI       -> null (JWKS discovered, and proxy mode refuses to run)
 //   JWT_AUTH_AUD            -> null (audience falls back to client_id)
-//   JWT_AUTH_DEFAULT_ROLE   -> 'subscriber'
 //   JWT_AUTH_CLAIM_*        -> standard OIDC claim names
 //   JWT_AUTH_REDIRECT       -> '/'
 //   JWT_AUTH_PROVIDER_NAME  -> 'SSO'

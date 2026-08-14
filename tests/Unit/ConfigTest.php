@@ -47,11 +47,6 @@ final class ConfigTest extends WordPressTestCase
         $this->assertNull(Config::tokenHeader());
     }
 
-    public function test_user_creation_defaults(): void
-    {
-        $this->assertSame('subscriber', Config::defaultRole());
-    }
-
     public function test_verified_email_is_not_demanded_by_default(): void
     {
         // Default-off keeps every provider that omits `email_verified` working, including tokens

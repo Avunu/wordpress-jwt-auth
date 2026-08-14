@@ -89,6 +89,15 @@ final class WpState
      */
     public static bool $usersCanRegister = true;
 
+    /**
+     * Settings → General → "New User Default Role" (`default_role`).
+     *
+     * Matches WordPress's own default. The plugin never reads this itself — core applies it inside
+     * wp_insert_user() — so a test that changes it is asserting that the plugin stays out of the
+     * way, not that it forwards the value.
+     */
+    public static string $defaultRole = 'subscriber';
+
     // WooCommerce page context.
     public static bool $isAccountPage = false;
     public static bool $isCheckout = false;
@@ -121,6 +130,7 @@ final class WpState
         self::$doingAjax = false;
         self::$isAdmin = false;
         self::$usersCanRegister = true;
+        self::$defaultRole = 'subscriber';
         self::$isAccountPage = false;
         self::$isCheckout = false;
         self::$failNextCreateUser = false;

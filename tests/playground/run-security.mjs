@@ -317,6 +317,63 @@ try {
 		passthrough.normal_blocks,
 		"proves the two passthroughs above are conditional, not the default",
 	);
+
+	// ---------------------------------------------------------------------
+	// What a newly provisioned account can do
+	// ---------------------------------------------------------------------
+	//
+	// The plugin names no role when it creates a user: wp_create_user() applies Settings → General →
+	// "New User Default Role" and nothing overwrites it afterwards. That is a claim about *core's*
+	// behaviour, so the PHPUnit fake can only model it — the same gap that let the filter-priority
+	// bug above survive a green suite. Assert it against real core instead.
+
+	const roles = await phpJson(
+		server,
+		`
+		update_option('users_can_register', 1);
+		update_option('default_role', 'contributor');
+
+		$claims = new JwtAuth\\Claims(
+			email: 'newcomer@example.test',
+			sub: 'pin:newcomer',
+			firstName: 'New',
+			lastName: 'Comer',
+			emailVerified: true,
+		);
+		$user = JwtAuth\\UserManager::findOrCreate($claims);
+
+		// A token that asks outright for administrator. Nothing reads these, which is the point.
+		$greedy = new JwtAuth\\Claims(
+			email: 'greedy@example.test',
+			sub: 'pin:greedy',
+			emailVerified: true,
+		);
+		$greedyUser = JwtAuth\\UserManager::findOrCreate($greedy);
+
+		return [
+			'created'      => $user instanceof WP_User,
+			'roles'        => $user instanceof WP_User ? array_values($user->roles) : [],
+			'greedy_roles' => $greedyUser instanceof WP_User ? array_values($greedyUser->roles) : [],
+			'can_edit'     => $user instanceof WP_User && user_can($user, 'edit_others_posts'),
+		];
+		`,
+	);
+	t.check("a new account is provisioned", roles.created);
+	t.check(
+		"it gets the site's New User Default Role",
+		JSON.stringify(roles.roles) === JSON.stringify(["contributor"]),
+		`roles=${JSON.stringify(roles.roles)} (option was set to contributor)`,
+	);
+	t.check(
+		"a claim cannot ask for a different one",
+		JSON.stringify(roles.greedy_roles) === JSON.stringify(["contributor"]),
+		`roles=${JSON.stringify(roles.greedy_roles)}`,
+	);
+	t.check(
+		"and that role's capabilities are the site's, not an elevated set",
+		roles.can_edit === false,
+		"contributor cannot edit others' posts",
+	);
 } finally {
 	await server[Symbol.asyncDispose]();
 }

@@ -78,13 +78,27 @@ final class UserManagerTest extends WordPressTestCase
         $this->assertSame('Ada', $found->first_name);
         $this->assertSame('Lovelace', $found->last_name);
         $this->assertSame('Ada Lovelace', $found->display_name);
-        $this->assertSame('subscriber', $found->role, 'the default role, not an elevated one');
+        $this->assertSame('subscriber', $found->role, 'the site default role, not an elevated one');
         $this->assertSame('pin:abc', WpState::metaFor($found->ID)['jwt_auth_sub'] ?? null);
     }
 
-    public function test_never_grants_more_than_the_configured_default_role(): void
+    public function test_gives_new_accounts_the_role_the_site_chose_for_new_users(): void
+    {
+        // Settings → General → "New User Default Role", the same setting every other registration
+        // path obeys. The plugin does not read it: wp_create_user() applies it, and findOrCreate()
+        // deliberately omits a 'role' key afterwards so nothing overwrites core's answer.
+        WpState::$defaultRole = 'contributor';
+
+        $found = UserManager::findOrCreate($this->claims());
+
+        $this->assertSame('contributor', $found->role);
+    }
+
+    public function test_never_grants_more_than_the_site_default_role(): void
     {
         // A provider claim must never be able to talk the plugin into creating an administrator.
+        // Deferring to core is what makes this true by construction rather than by vigilance —
+        // there is no code path in which a claim reaches the role.
         $found = UserManager::findOrCreate($this->claims(email: 'admin@example.test'));
 
         $this->assertSame('subscriber', $found->role);

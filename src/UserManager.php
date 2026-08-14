@@ -70,12 +70,16 @@ final class UserManager
             throw new \RuntimeException('Failed to create user: ' . $userId->get_error_message());
         }
 
+        // No 'role' key, deliberately. wp_create_user() above already applied Settings → General →
+        // "New User Default Role", the same setting every other registration path on the site
+        // obeys; naming a role here would only overwrite it with a second opinion. Deferring to
+        // core is also what makes the answer safe by construction — the role is whatever the
+        // administrator chose for strangers, and no provider claim participates in the decision.
         wp_update_user([
             'ID'           => $userId,
             'first_name'   => $claims->firstName,
             'last_name'    => $claims->lastName,
             'display_name' => $claims->fullName(),
-            'role'         => Config::defaultRole(),
         ]);
 
         update_user_meta($userId, 'jwt_auth_sub', $claims->sub);

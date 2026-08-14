@@ -1,6 +1,6 @@
 # JWT Auth
 
-A WordPress plugin that completely replaces native authentication with an external JWT provider. All login attempts are redirected to the provider; users are created on demand with the `subscriber` role. No admin UI — configured entirely via `wp-config.php`.
+A WordPress plugin that completely replaces native authentication with an external JWT provider. All login attempts are redirected to the provider; users are created on demand, with the role the site already gives new users. No admin UI — configured entirely via `wp-config.php`.
 
 Supports two modes:
 
@@ -107,7 +107,7 @@ define('JWT_AUTH_CLIENT_ID',     'yoursite');                  // this site's te
 define('JWT_AUTH_CLIENT_SECRET', ''); // PKCE-only public client (recommended)
 ```
 
-New visitors who prove ownership of an email address get a `subscriber` account created automatically, as long as the site is [accepting registrations](#turning-account-creation-off).
+New visitors who prove ownership of an email address get an account created automatically, as long as the site is [accepting registrations](#turning-account-creation-off).
 
 One worker can serve many sites from a single issuer. Each site is a **tenant** identified by its `JWT_AUTH_CLIENT_ID`, which the worker uses as the token's `aud` claim — so give every site a distinct value, since the audience check below is what keeps one site's tokens from being accepted by another. A multi-tenant worker also offers cross-site single sign-on: verifying a PIN at one site signs the user in at the others (with a confirmation the first time they reach each new one).
 
@@ -127,7 +127,6 @@ The worker's source lives in [`worker/`](worker/) and is published to GitHub Pac
 | JWT_AUTH_TOKEN_COOKIE | — | Cookie name carrying the JWT (proxy mode). |
 | JWT_AUTH_TOKEN_HEADER | — | HTTP header name carrying the JWT (proxy mode). Falls back to Authorization: Bearer if neither cookie nor header is configured. |
 | JWT_AUTH_LOGOUT_URL | — | Provider logout URL. Overrides OIDC end_session_endpoint when set. |
-| JWT_AUTH_DEFAULT_ROLE | subscriber | WordPress role assigned to newly created users. |
 | JWT_AUTH_CLAIM_EMAIL | email | JWT claim containing the user's email address. |
 | JWT_AUTH_CLAIM_FIRST_NAME | given_name | JWT claim for first name. |
 | JWT_AUTH_CLAIM_LAST_NAME | family_name | JWT claim for last name. |
@@ -145,7 +144,7 @@ The worker's source lives in [`worker/`](worker/) and is published to GitHub Pac
 2.  The plugin generates a random `state` and a PKCE `code_challenge` (S256), stored server-side in WordPress transients. Nothing is written to cookies or the URL.
 3.  After the user authenticates, the provider redirects to `https://yoursite.com/?jwt_auth_callback=1&code=…&state=…`.
 4.  The plugin validates the state, exchanges the code for tokens at the provider's token endpoint, and validates the `id_token` JWT against the provider's JWKS.
-5.  A WordPress user is found (by `sub` meta, then email) or, if the site is [accepting registrations](#turning-account-creation-off), created with the configured default role.
+5.  A WordPress user is found (by `sub` meta, then email) or, if the site is [accepting registrations](#turning-account-creation-off), created with the site's [default role for new users](#what-new-accounts-can-do).
 6.  A standard WordPress auth cookie is set and the user is redirected to their original destination.
 
 ### Authentication flow (proxy mode)
@@ -159,10 +158,18 @@ The worker's source lives in [`worker/`](worker/) and is published to GitHub Pac
 New users are created with:
 
 -   `user_login` set to their email address.
--   The role defined by `JWT_AUTH_DEFAULT_ROLE` (default: `subscriber`).
+-   The role from **Settings → General → "New User Default Role"** (see [below](#what-new-accounts-can-do)).
 -   The provider's `sub` claim stored in user meta as `jwt_auth_sub`.
 
 On every subsequent login, the user's first name, last name, display name, and email are synced from the JWT claims. The `sub` meta is used for lookups first, so email changes at the provider are handled gracefully.
+
+### What new accounts can do
+
+The role comes from WordPress's own **Settings → General → "New User Default Role"** (`default_role`), the same setting every other registration path on the site obeys. There is no separate constant.
+
+The plugin does not read the setting at all — `wp_create_user()` applies it, and the plugin deliberately declines to name a role afterwards. That is what makes the guarantee structural rather than vigilant: no provider claim participates in the decision, so no token, however crafted, can ask for a role. The answer is whatever the administrator chose for strangers.
+
+> **Upgrading to 4.0.0:** this replaces the `JWT_AUTH_DEFAULT_ROLE` constant, which is no longer read. If you set it, copy its value into **Settings → General → "New User Default Role"** before updating — otherwise accounts created after the update get whatever that setting already says, which on most installs is `subscriber`. Existing users are unaffected; only newly provisioned accounts take the role. Removing the `define()` from `wp-config.php` is optional, but it is now dead configuration.
 
 ### Turning account creation off
 

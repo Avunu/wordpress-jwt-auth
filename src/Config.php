@@ -90,11 +90,6 @@ final class Config
         return defined('JWT_AUTH_REQUIRE_VERIFIED_EMAIL') && JWT_AUTH_REQUIRE_VERIFIED_EMAIL;
     }
 
-    public static function defaultRole(): string
-    {
-        return defined('JWT_AUTH_DEFAULT_ROLE') ? JWT_AUTH_DEFAULT_ROLE : 'subscriber';
-    }
-
     public static function claimEmail(): string
     {
         return defined('JWT_AUTH_CLAIM_EMAIL') ? JWT_AUTH_CLAIM_EMAIL : 'email';
