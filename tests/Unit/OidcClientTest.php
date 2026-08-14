@@ -93,8 +93,99 @@ final class OidcClientTest extends WordPressTestCase
 
         $this->assertSame(
             'https://example.test/members/',
-            WpState::$transients['jwt_auth_state_' . $params['state']],
+            WpState::$transients['jwt_auth_state_' . $params['state']]['redirect_to'],
         );
+    }
+
+    // ---------------------------------------------------------------------
+    // The state must belong to the browser that started the flow
+    // ---------------------------------------------------------------------
+
+    public function test_the_state_transient_stores_only_a_hash_of_the_browser_secret(): void
+    {
+        // WordPress transients are site-global and readable by anything with database access, so
+        // the secret itself must not live there — only something the cookie can be checked against.
+        $params = $this->startLogin();
+        $record = WpState::$transients['jwt_auth_state_' . $params['state']];
+        $binder = $_COOKIE['jwt_auth_state_binder'];
+
+        $this->assertNotSame($binder, $record['binder']);
+        $this->assertSame(hash('sha256', $binder), $record['binder']);
+    }
+
+    public function test_the_binder_cookie_is_not_readable_or_sendable_by_a_third_party(): void
+    {
+        $this->startLogin();
+        $cookie = end(WpState::$cookiesSet);
+
+        $this->assertSame('jwt_auth_state_binder', $cookie['name']);
+        $this->assertTrue($cookie['options']['httponly'], 'script must not be able to read it');
+        $this->assertTrue($cookie['options']['secure']);
+        $this->assertSame('Lax', $cookie['options']['samesite']);
+        // Outliving the transient would leave a usable binder for a state that no longer exists.
+        $this->assertLessThanOrEqual(time() + 600, $cookie['options']['expires']);
+    }
+
+    public function test_rejects_a_callback_arriving_in_a_different_browser(): void
+    {
+        // Authorization-code injection. The attacker completes a real sign-in as themselves, holds
+        // the code, and navigates the victim to the callback. Every other check passes on the
+        // merits — the transient exists, the code is valid, the token verifies — so without a
+        // browser binding the victim is silently logged in as the attacker.
+        $params = $this->startLogin();
+        $this->registerTokenResponse(KeyFixture::primary()->sign());
+        $_GET = ['jwt_auth_callback' => '1', 'code' => 'auth-code', 'state' => $params['state']];
+
+        unset($_COOKIE['jwt_auth_state_binder']); // the victim's browser never saw it
+
+        try {
+            OidcClient::handleCallback();
+            $this->fail('expected the callback to be refused');
+        } catch (WpDieException $died) {
+            $this->assertStringContainsString('Invalid or expired authentication state', $died->body);
+            $this->assertSame(400, $died->status());
+        }
+
+        $this->assertSame([], WpState::$authCookies, 'no session may be established');
+        $this->assertFalse(WpState::$authCookieCleared, "and the victim's own session survives");
+    }
+
+    public function test_rejects_a_callback_carrying_the_wrong_browser_secret(): void
+    {
+        $params = $this->startLogin();
+        $this->registerTokenResponse(KeyFixture::primary()->sign());
+        $_GET = ['jwt_auth_callback' => '1', 'code' => 'auth-code', 'state' => $params['state']];
+
+        $_COOKIE['jwt_auth_state_binder'] = bin2hex(random_bytes(32)); // a binder from another flow
+
+        $this->expectException(WpDieException::class);
+        $this->expectExceptionMessage('Invalid or expired authentication state');
+        OidcClient::handleCallback();
+    }
+
+    public function test_a_refused_callback_consumes_the_state_and_the_verifier(): void
+    {
+        // Otherwise the attacker simply retries against the next victim with the same pair.
+        $params = $this->startLogin();
+        $this->registerTokenResponse(KeyFixture::primary()->sign());
+        $_GET = ['jwt_auth_callback' => '1', 'code' => 'auth-code', 'state' => $params['state']];
+        unset($_COOKIE['jwt_auth_state_binder']);
+
+        try {
+            OidcClient::handleCallback();
+        } catch (WpDieException) {
+            // expected
+        }
+
+        $this->assertArrayNotHasKey('jwt_auth_state_' . $params['state'], WpState::$transients);
+        $this->assertArrayNotHasKey('jwt_auth_cv_' . $params['state'], WpState::$transients);
+    }
+
+    public function test_the_binder_is_cleared_after_a_successful_login(): void
+    {
+        $this->completeLogin();
+
+        $this->assertArrayNotHasKey('jwt_auth_state_binder', $_COOKIE);
     }
 
     public function test_stands_aside_for_wordpress_own_logout(): void

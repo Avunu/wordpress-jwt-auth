@@ -1,0 +1,18 @@
+{
+	"name": "jwt-auth-tests",
+	"version": "0.0.0",
+	"private": true,
+	"description": "wp-playground based e2e tests for the JWT Auth plugin's WooCommerce integration. Isolated from the root package so its heavy deps (@wp-playground/cli, playwright-core) never touch the package-lock.json the Nix build consumes.",
+	"type": "module",
+	"scripts": {
+		"test:assets": "node run-assets.mjs",
+		"test:e2e": "node run-e2e.mjs",
+		"test:browser": "node run-browser.mjs",
+		"test": "node run-assets.mjs && node run-e2e.mjs && node run-security.mjs",
+		"test:security": "node run-security.mjs"
+	},
+	"devDependencies": {
+		"@wp-playground/cli": "^3.1.44",
+		"playwright-core": "^1.49.0"
+	}
+}

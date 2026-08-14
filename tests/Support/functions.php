@@ -186,9 +186,32 @@ function esc_html(string $text): string
     return htmlspecialchars($text, ENT_QUOTES);
 }
 
+function esc_attr(string $text): string
+{
+    return htmlspecialchars($text, ENT_QUOTES);
+}
+
+/** WordPress's wrapper adds error handling and a few default flags; the encoding is json_encode. */
+function wp_json_encode(mixed $data): string|false
+{
+    return json_encode($data);
+}
+
 function plugin_dir_url(string $file): string
 {
     return 'https://example.test/wp-content/plugins/jwt-auth/';
+}
+
+/**
+ * The filesystem root the plugin reads its build manifest from.
+ *
+ * Points at a fixture, not the real repo, so the suite says the same thing whether or not
+ * `npm run build` has run — the Nix phpunit check has Composer but no Node. Tests that want the
+ * unbuilt branch move WpState::$pluginDir somewhere without a build/ directory.
+ */
+function plugin_dir_path(string $file): string
+{
+    return WpState::$pluginDir;
 }
 
 // ---------------------------------------------------------------------------
@@ -221,6 +244,12 @@ function wp_doing_cron(): bool
     return WpState::$doingCron;
 }
 
+function is_ssl(): bool
+{
+    return true;
+}
+
+
 function wp_doing_ajax(): bool
 {
     return WpState::$doingAjax;
@@ -243,6 +272,46 @@ function get_option(string $option, mixed $default = false): mixed
 function do_action(string $hook, mixed ...$args): void
 {
     WpState::$actions[] = ['hook' => $hook, 'args' => $args];
+}
+
+// ---------------------------------------------------------------------------
+// Filters
+//
+// A real priority-ordered filter chain, because for `authenticate` the ordering *is* the security
+// property: the login is whatever the LAST callback returns, so a refusal registered below core's
+// handlers is silently overwritten by them. Testing the callback in isolation cannot see that —
+// which is exactly how a plugin whose headline control did nothing kept a green suite.
+// ---------------------------------------------------------------------------
+
+function add_filter(string $hook, callable $callback, int $priority = 10, int $args = 1): bool
+{
+    WpState::$filters[$hook][$priority][] = $callback;
+    return true;
+}
+
+function apply_filters(string $hook, mixed $value, mixed ...$args): mixed
+{
+    $byPriority = WpState::$filters[$hook] ?? [];
+    ksort($byPriority);
+    foreach ($byPriority as $callbacks) {
+        foreach ($callbacks as $callback) {
+            $value = $callback($value, ...$args);
+        }
+    }
+    return $value;
+}
+
+/**
+ * WordPress's own wp_authenticate(), faithfully enough for the ordering to matter: it is the filter
+ * result that decides, and a null or non-existent user becomes a generic failure.
+ */
+function wp_authenticate(string $username, string $password): WP_User|WP_Error
+{
+    $user = apply_filters('authenticate', null, $username, $password);
+    if ($user === null) {
+        return new WP_Error('authentication_failed', 'Invalid username or password.');
+    }
+    return $user;
 }
 
 function wp_generate_password(int $length = 12, bool $special_chars = true): string
@@ -332,6 +401,12 @@ function update_user_meta(int $id, string $key, mixed $value): bool
     return true;
 }
 
+function delete_user_meta(int $id, string $key): bool
+{
+    unset(WpState::$userMeta[$id][$key]);
+    return true;
+}
+
 // ---------------------------------------------------------------------------
 // WooCommerce
 // ---------------------------------------------------------------------------
@@ -368,11 +443,18 @@ function wp_enqueue_script(
     array|bool $args = false,
 ): void {
     WpState::$enqueuedScripts[] = $handle;
+    WpState::$scriptVersions[$handle] = $ver;
 }
 
 /** @param array<string, mixed> $data */
 function wp_localize_script(string $handle, string $name, array $data): bool
 {
     WpState::$localizedScripts[] = ['handle' => $handle, 'data' => $data];
+    return true;
+}
+
+function wp_add_inline_script(string $handle, string $data, string $position = 'after'): bool
+{
+    WpState::$inlineScripts[] = ['handle' => $handle, 'data' => $data, 'position' => $position];
     return true;
 }

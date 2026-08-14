@@ -4,8 +4,10 @@ import { createLocalJWKSet, jwtVerify, decodeJwt } from "jose";
 import type { JSONWebKeySet } from "jose";
 import type { LoginFlow } from "../../src/flow-do";
 import type { UserSession } from "../../src/session-do";
+import type { LoginGuard } from "../../src/guard-do";
 import type { FlowContext } from "../../src/schemas";
 import { hashSecret } from "../../src/lib/otp";
+import { sha256Hex } from "../../src/lib/util";
 import { CLIENT_SOURCE_HASH } from "../../src/client";
 import {
 	ALPHA_REDIRECT,
@@ -74,12 +76,28 @@ function postPartial(
 	});
 }
 
-/** Drive a flow to the point where the next correct PIN completes it. */
-async function armedFlow(flowId: string, pin: string, clientId = "alpha"): Promise<string> {
+/** The flow id inside a `__Host-wp_auth_flow=…` cookie fragment, which forms must now echo. */
+function flowIdFrom(cookieFragment: string | undefined): string {
+	return (cookieFragment ?? "").split("=")[1] ?? "";
+}
+
+/**
+ * Drive a flow to the point where the next correct PIN completes it.
+ *
+ * `email` is a parameter because wrong guesses are now counted against the _address_, across every
+ * flow it opens. Tests that deliberately fail PINs must therefore use an address of their own, or
+ * they spend an allowance the rest of the file is relying on.
+ */
+async function armedFlow(
+	flowId: string,
+	pin: string,
+	clientId = "alpha",
+	email = EMAIL,
+): Promise<string> {
 	const stub = flowStub(flowId);
 	const redirectUri = clientId === "alpha" ? ALPHA_REDIRECT : BETA_REDIRECT;
 	await stub.create(context(clientId, redirectUri));
-	await stub.setChallenge(EMAIL, await hashSecret(pin, flowId), await hashSecret("tok", flowId));
+	await stub.setChallenge(email, await hashSecret(pin, flowId), await hashSecret("tok", flowId));
 	return `__Host-wp_auth_flow=${flowId}`;
 }
 
@@ -93,6 +111,14 @@ function sessionStub(sessionId: string): DurableObjectStub<UserSession> {
 		throw new Error("SSO_SESSION binding missing from the test environment");
 	}
 	return namespace.get(namespace.idFromName(sessionId));
+}
+
+function guardFor(emailHash: string): DurableObjectStub<LoginGuard> {
+	const namespace = env.LOGIN_GUARD;
+	if (!namespace) {
+		throw new Error("LOGIN_GUARD binding missing from the test environment");
+	}
+	return namespace.get(namespace.idFromName(emailHash));
 }
 
 function context(clientId: string, redirectUri: string): FlowContext {
@@ -180,7 +206,7 @@ describe("GET /authorize — tenant resolution", () => {
 		const [flowCookie] = setCookie.split(";");
 		const stepped = await postForm(
 			`${ISSUER}/authorize`,
-			{ step: "change_email" },
+			{ step: "change_email", flow: flowIdFrom(flowCookie) },
 			flowCookie ?? "",
 		);
 		expect(stepped.status).toBe(200);
@@ -239,6 +265,10 @@ describe("POST /token — code ownership", () => {
 		});
 		expect(payload["email"]).toBe(EMAIL);
 		expect(payload.sub).toMatch(/^pin:/);
+		// Asserted rather than assumed: no path here produces an identity without someone having read
+		// a PIN or a magic link sent to that address. Saying so lets the plugin refuse addresses from
+		// providers that do *not* verify, without that policy also rejecting us.
+		expect(payload["email_verified"]).toBe(true);
 	});
 
 	it("refuses a code minted for another tenant", async () => {
@@ -280,7 +310,7 @@ describe("enhanced (fetch) submissions", () => {
 
 		const res = await postPartial(
 			`${ISSUER}/authorize`,
-			{ step: "verify_code", pin: "424242" },
+			{ step: "verify_code", pin: "424242", flow: "partial-success" },
 			cookie,
 		);
 
@@ -300,7 +330,7 @@ describe("enhanced (fetch) submissions", () => {
 
 		const res = await postForm(
 			`${ISSUER}/authorize`,
-			{ step: "verify_code", pin: "515151" },
+			{ step: "verify_code", pin: "515151", flow: "plain-success" },
 			cookie,
 		);
 
@@ -314,7 +344,7 @@ describe("enhanced (fetch) submissions", () => {
 
 		const res = await postPartial(
 			`${ISSUER}/authorize`,
-			{ step: "verify_code", pin: "000000" },
+			{ step: "verify_code", pin: "000000", flow: "partial-error" },
 			cookie,
 		);
 
@@ -331,7 +361,7 @@ describe("enhanced (fetch) submissions", () => {
 
 		const res = await postForm(
 			`${ISSUER}/authorize`,
-			{ step: "verify_code", pin: "000000" },
+			{ step: "verify_code", pin: "000000", flow: "plain-error" },
 			cookie,
 		);
 
@@ -392,7 +422,7 @@ describe("submitting a code twice", () => {
 
 		const res = await postForm(
 			`${ISSUER}/authorize`,
-			{ step: "verify_code", pin: "135790" },
+			{ step: "verify_code", pin: "135790", flow: flowId },
 			`__Host-wp_auth_flow=${flowId}`,
 		);
 
@@ -401,6 +431,207 @@ describe("submitting a code twice", () => {
 		expect(html).toContain("Alpha Site");
 		expect(html).not.toContain("session has expired");
 		expect(html).not.toContain("incorrect");
+	});
+});
+
+describe("per-identity guessing guard", () => {
+	/** Submit `count` wrong PINs to one flow, returning the last response. */
+	async function guessRepeatedly(flowId: string, count: number): Promise<Response> {
+		let res!: Response;
+		for (let i = 0; i < count; i++) {
+			res = await postForm(
+				`${ISSUER}/authorize`,
+				{ step: "verify_code", pin: "000000", flow: flowId },
+				`__Host-wp_auth_flow=${flowId}`,
+			);
+			await res.text();
+		}
+		return res;
+	}
+
+	it("carries the guess count across flows, so opening a new one no longer resets it", async () => {
+		// The attack this exists for. LoginFlow caps attempts at five per challenge and setChallenge
+		// resets that counter, so before the guard an attacker just requested another code — one
+		// Turnstile solve — and got five more. Five plus five plus one here proves the budget now
+		// belongs to the address instead of the attempt.
+		const email = "guarded-victim@example.com";
+
+		const first = await armedFlow("guard-flow-1", "111111", "alpha", email);
+		expect(first).toBeTruthy();
+		await guessRepeatedly("guard-flow-1", 5);
+
+		// A brand-new flow: fresh challenge, fresh per-flow counter, same person being attacked.
+		await armedFlow("guard-flow-2", "222222", "alpha", email);
+		const fifth = await guessRepeatedly("guard-flow-2", 5);
+		// Still inside the allowance — this is where the old behaviour let it run forever.
+		expect(fifth.status).toBe(401);
+
+		await armedFlow("guard-flow-3", "333333", "alpha", email);
+		const crossing = await postForm(
+			`${ISSUER}/authorize`,
+			{ step: "verify_code", pin: "000000", flow: "guard-flow-3" },
+			"__Host-wp_auth_flow=guard-flow-3",
+		);
+		expect(crossing.status).toBe(429);
+		const html = await crossing.text();
+		expect(html).toContain("Too many");
+		// The address is never echoed back to a failed guess, even now that we are counting it.
+		expect(html).not.toContain(email);
+	});
+
+	it("refuses to send a new code to a locked address", async () => {
+		// The load-bearing half: refusing to mint further challenges is what turns the per-flow cap
+		// into a real ceiling, and it stops the victim's inbox carrying the attack.
+		//
+		// Turnstile is answered by the config's outboundService, so this reaches the guard rather than
+		// stopping at the human check. That ordering is deliberate and worth stating: the guard sits
+		// *after* Turnstile, so probing "is this address locked out?" costs a solve every time instead
+		// of being a free oracle.
+		const email = "locked-send@example.com";
+		const guard = guardFor(await sha256Hex(email));
+		for (let i = 0; i < 11; i++) {
+			await guard.recordFailure();
+		}
+		const verdict = await guard.check();
+		expect(verdict.locked).toBe(true);
+
+		const cookie = await armedFlow("guard-send", "444444", "alpha", email);
+		const res = await postForm(
+			`${ISSUER}/authorize`,
+			{ step: "request_code", email, "cf-turnstile-response": "dummy", flow: "guard-send" },
+			cookie,
+		);
+		expect(res.status).toBe(429);
+		expect(await res.text()).toContain("Too many failed sign-in attempts");
+	});
+
+	it("clears the run when the right code finally arrives", async () => {
+		const email = "fumbler@example.com";
+		await armedFlow("guard-clear-1", "555555", "alpha", email);
+		await guessRepeatedly("guard-clear-1", 5);
+
+		// Same person, next flow, correct code. Their earlier fumbling must not follow them.
+		const cookie = await armedFlow("guard-clear-2", "666666", "alpha", email);
+		const ok = await postForm(
+			`${ISSUER}/authorize`,
+			{ step: "verify_code", pin: "666666", flow: "guard-clear-2" },
+			cookie,
+		);
+		expect(ok.status).toBe(302);
+
+		const guard = guardFor(await sha256Hex(email));
+		const cleared = await guard.check();
+		expect(cleared.locked).toBe(false);
+		// Reset outright, not merely unlocked: a full allowance is available again.
+		for (let i = 0; i < 10; i++) {
+			const verdict = await guard.recordFailure();
+			expect(verdict.locked).toBe(false);
+		}
+	});
+});
+
+describe("security regressions", () => {
+	it("refuses a cross-site POST to /magic", async () => {
+		// Login CSRF. The endpoint takes no cookie by design, so SameSite protects nothing: an
+		// attacker holding their OWN unspent magic token can auto-submit it from a page the victim
+		// loads, minting a code into the victim's browser and — worse — an SSO cookie bound to the
+		// attacker's identity, after which the whole fleet signs the victim in as the attacker.
+		const flow = "magic-csrf";
+		const stub = flowStub(flow);
+		await stub.create(context("alpha", ALPHA_REDIRECT));
+		await stub.setChallenge(EMAIL, await hashSecret("111111", flow), await hashSecret("tok", flow));
+
+		const res = await exports.default.fetch(`${ISSUER}/magic`, {
+			method: "POST",
+			redirect: "manual",
+			headers: {
+				"Content-Type": "application/x-www-form-urlencoded",
+				// What a cross-origin auto-submitting form actually sends.
+				"Sec-Fetch-Site": "cross-site",
+				Origin: "https://evil.test",
+			},
+			body: new URLSearchParams({ flow, token: "tok" }).toString(),
+		});
+
+		expect(res.status).toBe(410);
+		expect(res.headers.get("Set-Cookie")).toBeNull(); // no SSO session planted
+		expect(res.headers.get("Location")).toBeNull(); // no code handed out
+		// And the token is still unspent, so the real human's click still works.
+		const still = await stub.verifyMagic(await hashSecret("tok", flow));
+		expect(still.ok).toBe(true);
+	});
+
+	it("still accepts the same-origin POST the confirm page makes", async () => {
+		const flow = "magic-same-origin";
+		const stub = flowStub(flow);
+		await stub.create(context("alpha", ALPHA_REDIRECT));
+		await stub.setChallenge(EMAIL, await hashSecret("222222", flow), await hashSecret("tok", flow));
+
+		const res = await exports.default.fetch(`${ISSUER}/magic`, {
+			method: "POST",
+			redirect: "manual",
+			headers: {
+				"Content-Type": "application/x-www-form-urlencoded",
+				"Sec-Fetch-Site": "same-origin",
+			},
+			body: new URLSearchParams({ flow, token: "tok" }).toString(),
+		});
+
+		expect(res.status).toBe(302);
+		expect(res.headers.get("Location")).toContain("https://alpha.test/");
+	});
+
+	it("refuses a submission whose page belongs to a different flow", async () => {
+		// Flow substitution. One flow cookie serves the whole issuer and every render overwrites it,
+		// so another tab can repoint it between render and click — completing a *different* tenant's
+		// sign-in from a page branded for this one, with no email sent and nothing on screen naming
+		// the site that benefits.
+		const victim = "flow-page";
+		const attacker = "flow-cookie";
+		await flowStub(victim).create(context("alpha", ALPHA_REDIRECT));
+		await flowStub(attacker).create(context("beta", BETA_REDIRECT));
+
+		const res = await postForm(
+			`${ISSUER}/authorize`,
+			{ step: "change_email", flow: victim }, // the page the human is looking at
+			`__Host-wp_auth_flow=${attacker}`, // what another tab left in the cookie
+		);
+
+		expect(res.status).toBe(400);
+		const html = await res.text();
+		expect(html).toContain("Start again");
+		expect(html).not.toContain("Beta Site");
+	});
+
+	it("refuses a client_secret rather than ignoring one", async () => {
+		// Discovery advertises auth method "none". Silently accepting a secret would let an operator
+		// believe JWT_AUTH_CLIENT_SECRET adds a factor when it does nothing at all.
+		const code = await mintCodeFor("secret-tok", "alpha", ALPHA_REDIRECT);
+		const res = await postForm(`${ISSUER}/token`, {
+			grant_type: "authorization_code",
+			code,
+			redirect_uri: ALPHA_REDIRECT,
+			code_verifier: CODE_VERIFIER,
+			client_id: "alpha",
+			client_secret: "hunter2",
+		});
+
+		expect(res.status).toBe(401);
+		expect((await res.json()) as { error: string }).toMatchObject({ error: "invalid_client" });
+	});
+
+	it("still accepts the empty client_secret the setup instructions print", async () => {
+		const code = await mintCodeFor("secret-empty", "alpha", ALPHA_REDIRECT);
+		const res = await postForm(`${ISSUER}/token`, {
+			grant_type: "authorization_code",
+			code,
+			redirect_uri: ALPHA_REDIRECT,
+			code_verifier: CODE_VERIFIER,
+			client_id: "alpha",
+			client_secret: "",
+		});
+
+		expect(res.status).toBe(200);
 	});
 });
 
@@ -442,7 +673,7 @@ describe("cross-site SSO", () => {
 
 		const confirmed = await postForm(
 			`${ISSUER}/authorize`,
-			{ step: "continue_sso" },
+			{ step: "continue_sso", flow: flowIdFrom(flowCookie) },
 			`${cookie}; ${flowCookie}`,
 		);
 		expect(confirmed.status).toBe(302);

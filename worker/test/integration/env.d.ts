@@ -12,7 +12,7 @@ declare global {
 
 		interface GlobalProps {
 			mainModule: typeof import("../../src/index");
-			durableNamespaces: "LoginFlow" | "UserSession";
+			durableNamespaces: "LoginFlow" | "UserSession" | "LoginGuard";
 		}
 	}
 }

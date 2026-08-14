@@ -77,7 +77,7 @@ $jwtAuthVcsApi->enableReleaseAssets('/jwt-auth\.zip$/');
 // derives the version as ltrim(tag, 'v'), so the filter matches a bare version number.
 $jwtAuthVcsApi->setReleaseVersionFilter('/^\d+\.\d+\.\d+/');
 
-use JwtAuth\{AuthMode, Config, OidcClient, Validator, WooCommerce};
+use JwtAuth\{AuthMode, Config, OidcClient, UserManager, Validator, WooCommerce};
 
 add_action('plugins_loaded', static function (): void {
     try {
@@ -94,7 +94,14 @@ add_action('plugins_loaded', static function (): void {
     add_action('init', OidcClient::handleDeniedReturn(...), 1);
 
     // Block all direct username/password authentication attempts.
-    add_filter('authenticate', Validator::blockDirectAuth(...), 1, 3);
+    //
+    // Priority 30 is load-bearing: `authenticate` is a filter, so the login is decided by whatever
+    // the LAST callback returns, and core registers wp_authenticate_username_password,
+    // wp_authenticate_email_password and wp_authenticate_application_password at priority 20. At
+    // priority 1 this refusal was simply overwritten by core's WP_User on every path that does not
+    // go through wp-login.php — XML-RPC and application passwords among them. Run after core, and
+    // below wp_authenticate_spam_check at 99.
+    add_filter('authenticate', Validator::blockDirectAuth(...), 30, 3);
 
     if ($mode === AuthMode::Proxy) {
         // Validate the proxy-injected JWT on every unauthenticated request.
@@ -103,6 +110,10 @@ add_action('plugins_loaded', static function (): void {
         // Intercept wp-login.php and redirect to the OIDC provider.
         add_action('login_init', OidcClient::redirectToProvider(...));
     }
+
+    // An administrator changing a user's email must actually revoke the old address, rather than
+    // leaving it authoritative through a provider binding that outlives it.
+    add_action('profile_update', UserManager::forgetSubOnEmailChange(...), 10, 2);
 
     // Handle logout — redirect to provider end-session endpoint when available.
     add_action('wp_logout', OidcClient::handleLogout(...));

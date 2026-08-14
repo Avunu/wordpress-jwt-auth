@@ -6,7 +6,10 @@
   "packages": {
     ".": {
       "release-type": "php",
-      "extra-files": ["jwt-auth.php"],
+      "extra-files": [
+        "jwt-auth.php",
+        { "type": "json", "path": "package.json", "jsonpath": "$.version" }
+      ],
       "exclude-paths": ["worker", ".release-please", ".github"]
     },
     "worker": {

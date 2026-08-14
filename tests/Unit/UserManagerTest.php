@@ -23,8 +23,15 @@ final class UserManagerTest extends WordPressTestCase
         string $sub = 'pin:abc',
         string $first = '',
         string $last = '',
+        ?bool $emailVerified = null,
     ): Claims {
-        return new Claims(email: $email, sub: $sub, firstName: $first, lastName: $last);
+        return new Claims(
+            email: $email,
+            sub: $sub,
+            firstName: $first,
+            lastName: $last,
+            emailVerified: $emailVerified,
+        );
     }
 
     public function test_finds_an_existing_user_by_subject(): void
@@ -96,6 +103,60 @@ final class UserManagerTest extends WordPressTestCase
     }
 
     // ---------------------------------------------------------------------
+    // Adoption by email requires an address the provider stands behind
+    // ---------------------------------------------------------------------
+
+    public function test_refuses_to_hand_over_an_existing_account_on_an_unverified_address(): void
+    {
+        // The account-takeover this guards. On any IdP with self-service signup an attacker can
+        // register with the victim's address and never confirm it; without this check the email
+        // fallback grafts them straight onto the victim's WordPress account, roles and all.
+        $victim = WpState::addUser('user@example.test');
+        $victim->role = 'administrator';
+
+        $found = UserManager::findOrCreate($this->claims(sub: 'pin:attacker', emailVerified: false));
+
+        $this->assertNull($found, 'an explicitly unverified address must not claim an account');
+        $this->assertArrayNotHasKey(
+            'jwt_auth_sub',
+            WpState::metaFor($victim->ID) ?? [],
+            'and it must not leave the attacker bound to the account either',
+        );
+    }
+
+    public function test_adopts_on_a_verified_address(): void
+    {
+        $legacy = WpState::addUser('user@example.test');
+
+        $found = UserManager::findOrCreate($this->claims(emailVerified: true));
+
+        $this->assertSame($legacy->ID, $found?->ID);
+    }
+
+    public function test_still_adopts_when_the_provider_omits_the_claim(): void
+    {
+        // Absent is not false. The companion worker never issues an address nobody read a PIN at,
+        // and tokens minted before the claim existed must keep working — so the default stays
+        // permissive, and sites with a riskier IdP opt in via JWT_AUTH_REQUIRE_VERIFIED_EMAIL.
+        $legacy = WpState::addUser('user@example.test');
+
+        $found = UserManager::findOrCreate($this->claims(emailVerified: null));
+
+        $this->assertSame($legacy->ID, $found?->ID);
+    }
+
+    public function test_a_known_subject_signs_in_regardless_of_the_verified_flag(): void
+    {
+        // The subject binding was established by a previous successful sign-in, so it is evidence in
+        // its own right. Only the email *fallback* rests on the provider's word about the address.
+        $existing = WpState::addUser('user@example.test', 'pin:abc');
+
+        $found = UserManager::findOrCreate($this->claims(emailVerified: false));
+
+        $this->assertSame($existing->ID, $found?->ID);
+    }
+
+    // ---------------------------------------------------------------------
     // Registration closed
     // ---------------------------------------------------------------------
 
@@ -154,5 +215,60 @@ final class UserManagerTest extends WordPressTestCase
 
         $this->assertSame($before->first_name, $found->first_name);
         $this->assertSame($before->user_email, $found->user_email);
+    }
+
+    // ---------------------------------------------------------------------
+    // A changed email must actually revoke the old address
+    // ---------------------------------------------------------------------
+
+    public function test_an_admin_changing_the_email_drops_the_stale_provider_binding(): void
+    {
+        // This provider derives the subject from the address, so the stored binding keeps pointing
+        // at whatever address was used last. Without this, changing a compromised user's email —
+        // the textbook remediation — leaves the attacker's old address matching by subject, with
+        // all of the account's roles intact.
+        $user = WpState::addUser('alice@old.example', 'pin:abc');
+        $before = clone $user;
+        $user->user_email = 'alice@new.example';
+
+        UserManager::forgetSubOnEmailChange($user->ID, $before);
+
+        $this->assertArrayNotHasKey('jwt_auth_sub', WpState::metaFor($user->ID) ?? []);
+    }
+
+    public function test_the_old_address_can_no_longer_take_over_the_account(): void
+    {
+        $alice = WpState::addUser('alice@old.example', 'pin:abc');
+        $before = clone $alice;
+        $alice->user_email = 'alice@new.example';
+        UserManager::forgetSubOnEmailChange($alice->ID, $before);
+
+        // The attacker still controls the old mailbox and signs in with it.
+        $found = UserManager::findOrCreate($this->claims(email: 'alice@old.example', sub: 'pin:abc'));
+
+        $this->assertNotSame($alice->ID, $found?->ID, 'must not land in Alice\'s account');
+        $this->assertSame('alice@new.example', $alice->user_email, 'and must not rewrite her address');
+    }
+
+    public function test_an_unchanged_email_keeps_the_binding(): void
+    {
+        $user = WpState::addUser('alice@example.test', 'pin:abc');
+
+        UserManager::forgetSubOnEmailChange($user->ID, clone $user);
+
+        $this->assertSame('pin:abc', WpState::metaFor($user->ID)['jwt_auth_sub'] ?? null);
+    }
+
+    public function test_the_plugin_own_provider_sync_does_not_drop_the_binding(): void
+    {
+        // syncProfile writes the token's email back to the user, which fires profile_update. If that
+        // undid the binding, every legitimate address change at the provider would de-key the
+        // account and mint a fresh one on the next sign-in.
+        $user = WpState::addUser('old@example.test', 'pin:abc');
+
+        UserManager::findOrCreate($this->claims(email: 'new@example.test', sub: 'pin:abc'));
+
+        $this->assertSame('new@example.test', $user->user_email);
+        $this->assertSame('pin:abc', WpState::metaFor($user->ID)['jwt_auth_sub'] ?? null);
     }
 }

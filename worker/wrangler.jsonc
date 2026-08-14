@@ -19,15 +19,20 @@
 	// SSO_SESSION: one instance per signed-in browser, backing cross-site single sign-on. The
 	// binding is optional in code, so a single-site wrapper can omit it (and its migration) and
 	// simply fall back to asking for an email and PIN every time.
+	// LOGIN_GUARD: one instance per email address, capping wrong PINs across flows rather than
+	// within one. Also optional in code — but omitting it means the only ceiling on guessing is
+	// RL_EMAIL, so leave it in place unless a wrapper truly cannot run the migration.
 	"durable_objects": {
 		"bindings": [
 			{ "name": "LOGIN_FLOW", "class_name": "LoginFlow" },
 			{ "name": "SSO_SESSION", "class_name": "UserSession" },
+			{ "name": "LOGIN_GUARD", "class_name": "LoginGuard" },
 		],
 	},
 	"migrations": [
 		{ "tag": "v1", "new_sqlite_classes": ["LoginFlow"] },
 		{ "tag": "v2", "new_sqlite_classes": ["UserSession"] },
+		{ "tag": "v3", "new_sqlite_classes": ["LoginGuard"] },
 	],
 
 	// Cross-flow abuse throttles (belt-and-suspenders with Turnstile). Keyed on the email address

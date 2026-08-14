@@ -1,0 +1,35 @@
+{
+	"name": "jwt-auth",
+	"version": "3.0.0",
+	"private": true,
+	"description": "Browser assets for the JWT Auth WordPress plugin's WooCommerce integration.",
+	"license": "MIT",
+	"type": "module",
+	"scripts": {
+		"build": "rolldown -c rolldown.config.ts",
+		"dev": "rolldown -c rolldown.config.ts --watch",
+		"typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json",
+		"lint": "oxlint .",
+		"lint:fix": "oxlint --fix .",
+		"lint:typecheck": "oxlint --type-aware -c .oxlintrc.typecheck.json .",
+		"format": "oxfmt .",
+		"format:check": "oxfmt --check .",
+		"check": "npm run format:check && npm run lint && npm run lint:typecheck && npm run typecheck",
+		"test": "vitest run",
+		"test:assets": "node tests/playground/run-assets.mjs",
+		"test:e2e": "node tests/playground/run-e2e.mjs",
+		"test:security": "node tests/playground/run-security.mjs",
+		"test:browser": "node tests/playground/run-browser.mjs",
+		"upgrade": "npx npm-check-updates -u && npm install"
+	},
+	"devDependencies": {
+		"@types/node": "^26.2.0",
+		"jsdom": "^30.0.1",
+		"oxfmt": "^0.63.0",
+		"oxlint": "^1.78.0",
+		"oxlint-tsgolint": "^7.0.2001",
+		"rolldown": "^1.2.4",
+		"typescript": "^7.0.2",
+		"vitest": "^4.1.10"
+	}
+}

@@ -59,7 +59,14 @@ export async function signIdToken(
 	const { privateKey, kid } = await getKeyBundle(provider.signingKeyPem);
 	const now = Math.floor(Date.now() / 1000);
 
-	const claims: Record<string, string> = { email: identity.email };
+	// email_verified is asserted, not assumed: there is no path to an identity here that did not
+	// involve reading a PIN or a magic link sent to that address. Saying so positively lets a
+	// relying party refuse addresses from providers that do NOT verify — an IdP with self-service
+	// signup can assert somebody else's address — without that policy also rejecting us.
+	const claims: Record<string, string | boolean> = {
+		email: identity.email,
+		email_verified: true,
+	};
 	if (identity.name) {
 		claims["name"] = identity.name;
 	}

@@ -9,6 +9,11 @@ import type { FlowContext } from "../../src/schemas";
 const CODE_CHALLENGE = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM";
 const REDIRECT = "https://site.example/?jwt_auth_callback=1";
 
+// sha256("user@example.com"). Every failure carries this rather than the address, which is what
+// lets a caller count the attempt against the identity without ever learning whose it was.
+const EMAIL = "user@example.com";
+const EMAIL_HASH = "b4c9a289323b21a01c3e940f150eb9b8c542587f1abfd8f0e1cc1ffc5e475514";
+
 function context(): FlowContext {
 	return {
 		clientId: "wordpress",
@@ -30,16 +35,16 @@ describe("LoginFlow Durable Object", () => {
 		const stub = stubFor(flowId);
 		await stub.create(context());
 		const pinHash = await hashSecret("123456", flowId);
-		await stub.setChallenge("user@example.com", pinHash, await hashSecret("tok", flowId));
+		await stub.setChallenge(EMAIL, pinHash, await hashSecret("tok", flowId));
 
 		const wrong = await hashSecret("000000", flowId);
 		for (let i = 0; i < 5; i++) {
 			const r = await stub.verifyPin(wrong);
-			expect(r).toEqual({ ok: false, reason: "invalid" });
+			expect(r).toEqual({ ok: false, reason: "invalid", emailHash: EMAIL_HASH });
 		}
 		// Even the correct PIN is now refused — the flow is locked.
 		const afterLock = await stub.verifyPin(pinHash);
-		expect(afterLock).toEqual({ ok: false, reason: "locked" });
+		expect(afterLock).toEqual({ ok: false, reason: "locked", emailHash: EMAIL_HASH });
 	});
 
 	it("verifies the correct PIN, mints a flow-addressed single-use code, and consumes it once", async () => {
@@ -83,7 +88,7 @@ describe("LoginFlow Durable Object", () => {
 		const stub = stubFor(flowId);
 		await stub.create(context());
 		const pinHash = await hashSecret("111111", flowId);
-		await stub.setChallenge("user@example.com", pinHash, await hashSecret("tok", flowId));
+		await stub.setChallenge(EMAIL, pinHash, await hashSecret("tok", flowId));
 
 		const verified = await stub.verifyPin(pinHash);
 		expect(verified.ok).toBe(true);
@@ -103,7 +108,7 @@ describe("LoginFlow Durable Object", () => {
 		const stub = stubFor(flowId);
 		await stub.create(context());
 		const magicHash = await hashSecret("magic-secret-token", flowId);
-		await stub.setChallenge("user@example.com", await hashSecret("999999", flowId), magicHash);
+		await stub.setChallenge(EMAIL, await hashSecret("999999", flowId), magicHash);
 
 		const bad = await stub.verifyMagic(await hashSecret("wrong-token", flowId));
 		expect(bad.ok).toBe(false);
@@ -123,16 +128,21 @@ describe("LoginFlow Durable Object", () => {
 		const stub = stubFor(flowId);
 		await stub.create(context());
 		const pinHash = await hashSecret("246810", flowId);
-		await stub.setChallenge("user@example.com", pinHash, await hashSecret("tok", flowId));
+		await stub.setChallenge(EMAIL, pinHash, await hashSecret("tok", flowId));
 
 		const completed = await stub.verifyPin(pinHash);
 		expect(completed.ok).toBe(true);
 
-		expect(await stub.verifyPin(pinHash)).toEqual({ ok: false, reason: "already_used" });
+		expect(await stub.verifyPin(pinHash)).toEqual({
+			ok: false,
+			reason: "already_used",
+			emailHash: EMAIL_HASH,
+		});
 		// A wrong PIN after completion is the same situation — the flow is simply done.
 		expect(await stub.verifyPin(await hashSecret("000000", flowId))).toEqual({
 			ok: false,
 			reason: "already_used",
+			emailHash: EMAIL_HASH,
 		});
 	});
 
@@ -141,11 +151,15 @@ describe("LoginFlow Durable Object", () => {
 		const stub = stubFor(flowId);
 		await stub.create(context());
 		const magicHash = await hashSecret("magic-secret-token", flowId);
-		await stub.setChallenge("user@example.com", await hashSecret("111111", flowId), magicHash);
+		await stub.setChallenge(EMAIL, await hashSecret("111111", flowId), magicHash);
 
 		const completed = await stub.verifyMagic(magicHash);
 		expect(completed.ok).toBe(true);
-		expect(await stub.verifyMagic(magicHash)).toEqual({ ok: false, reason: "already_used" });
+		expect(await stub.verifyMagic(magicHash)).toEqual({
+			ok: false,
+			reason: "already_used",
+			emailHash: EMAIL_HASH,
+		});
 	});
 
 	it("returns not_found for an unknown flow", async () => {

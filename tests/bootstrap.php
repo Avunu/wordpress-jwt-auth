@@ -13,6 +13,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../vendor/autoload.php';
 // Global-scope function definitions cannot be autoloaded; everything else in Support/ is PSR-4.
 require_once __DIR__ . '/Support/functions.php';
+require_once __DIR__ . '/Support/namespaced.php';
 
 define('JWT_AUTH_ISSUER', 'https://auth.test');
 define('JWT_AUTH_CLIENT_ID', 'testclient');

@@ -78,6 +78,18 @@ final class Config
     // User creation
     // -------------------------------------------------------------------------
 
+    /**
+     * Demand a positive `email_verified: true` before an address may claim an existing account.
+     *
+     * Off by default so a provider that omits the claim keeps working — the companion worker never
+     * issues an unverified address. Turn it on for any IdP with self-service signup, where an
+     * attacker can register with somebody else's address and never confirm it.
+     */
+    public static function requireVerifiedEmail(): bool
+    {
+        return defined('JWT_AUTH_REQUIRE_VERIFIED_EMAIL') && JWT_AUTH_REQUIRE_VERIFIED_EMAIL;
+    }
+
     public static function defaultRole(): string
     {
         return defined('JWT_AUTH_DEFAULT_ROLE') ? JWT_AUTH_DEFAULT_ROLE : 'subscriber';

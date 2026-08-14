@@ -1,6 +1,7 @@
 /// <reference types="@cloudflare/workers-types" />
 import type { LoginFlow } from "./flow-do";
 import type { UserSession } from "./session-do";
+import type { LoginGuard } from "./guard-do";
 
 /**
  * Bindings + configuration every deployment provides. Config values may arrive as committed `vars`
@@ -20,6 +21,12 @@ export interface AuthWorkerEnv {
 	 * adopt a new core version without a Durable Object migration.
 	 */
 	SSO_SESSION?: DurableObjectNamespace<UserSession>;
+	/**
+	 * One LoginGuard per email address, capping PIN guesses across flows rather than within one.
+	 * Optional for the same reason as SSO_SESSION — an existing wrapper can take a new core version
+	 * without a Durable Object migration — but without it the only ceiling on guessing is RL_EMAIL.
+	 */
+	LOGIN_GUARD?: DurableObjectNamespace<LoginGuard>;
 	/** Optional per-email send throttle. */
 	RL_EMAIL?: RateLimit;
 	/** Optional per-IP throttle. */

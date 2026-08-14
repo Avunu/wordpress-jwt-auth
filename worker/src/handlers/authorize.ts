@@ -9,6 +9,7 @@ import { FLOW_COOKIE, clientIp, getCookie, readForm, setCookie, underLimit } fro
 import { getFlowStub } from "../lib/flow";
 import { SSO_COOKIE, linkSession, readSession, startSession } from "../lib/session";
 import { generateMagicToken, generatePin, hashSecret } from "../lib/otp";
+import { guardCheck, guardFailure, guardSuccess, retryMinutes } from "../lib/guard";
 import { randomHex, sha256Hex } from "../lib/util";
 import { verifyTurnstile } from "../lib/turnstile";
 import { sendLoginEmail } from "../lib/email";
@@ -87,8 +88,8 @@ export async function handleAuthorizeGet(
 	const res = respond(
 		request,
 		session
-			? continuePage({ tenant, email: session.email })
-			: emailFormPage({ tenant, siteKey: config.provider.turnstileSiteKey }),
+			? continuePage({ tenant, email: session.email, flowId })
+			: emailFormPage({ tenant, siteKey: config.provider.turnstileSiteKey, flowId }),
 	);
 	res.headers.append("Set-Cookie", setCookie(FLOW_COOKIE, flowId, FLOW_COOKIE_TTL_SECONDS));
 	if (session) {
@@ -169,10 +170,28 @@ async function routeAuthorizeForm(
 			emailFormPage({
 				tenant,
 				siteKey: config.provider.turnstileSiteKey,
+				flowId,
 				error: "Please check your details and try again.",
 				status: 400,
 			}),
 		);
+	}
+
+	// The page and the cookie must agree about which sign-in this is.
+	//
+	// One flow cookie serves the whole issuer and every /authorize render overwrites it, so any
+	// other tab — including one an attacker navigates in a popup — can repoint it between the moment
+	// a page is rendered and the moment its button is pressed. Executing the submission against
+	// whatever the cookie now says would let a click made on one tenant's page complete a different
+	// tenant's flow: the "Continue" button on a page branded for site A minting a live identity
+	// assertion for site B, and permanently linking the SSO session to it, with no email sent and
+	// nothing on screen naming the site that actually benefits.
+	//
+	// Refusing is the right answer rather than preferring one source: a mismatch means we cannot
+	// know which sign-in the person consented to.
+	if (form.data.flow !== flowId) {
+		console.log(JSON.stringify({ event: "flow_form_cookie_mismatch", step: form.data.step }));
+		return respond(request, flowSuperseded());
 	}
 
 	switch (form.data.step) {
@@ -193,10 +212,13 @@ async function routeAuthorizeForm(
 			// Nothing is sent; a later request_code overwrites the challenge and resets attempts.
 			// Reached both from the PIN step and from the SSO confirmation, which is the only way to
 			// sign in as somebody else without first signing out.
-			return respond(request, emailFormPage({ tenant, siteKey: config.provider.turnstileSiteKey }));
+			return respond(
+				request,
+				emailFormPage({ tenant, siteKey: config.provider.turnstileSiteKey, flowId }),
+			);
 		}
 		case "continue_sso": {
-			return continueSso(request, env, config, stub, tenant);
+			return continueSso(request, env, config, stub, flowId, tenant);
 		}
 		default: {
 			return verifyCode(request, env, config, stub, flowId, tenant, form.data.pin);
@@ -216,7 +238,10 @@ async function requestCode(
 ): Promise<Response> {
 	const { provider } = config;
 	const renderError = (error: string, status = 400): Response =>
-		respond(request, emailFormPage({ tenant, siteKey: provider.turnstileSiteKey, error, status }));
+		respond(
+			request,
+			emailFormPage({ tenant, siteKey: provider.turnstileSiteKey, flowId, error, status }),
+		);
 
 	const human = await verifyTurnstile(
 		turnstileToken,
@@ -235,6 +260,18 @@ async function requestCode(
 		(await underLimit(env.RL_EMAIL, emailHash)) && (await underLimit(env.RL_IP, ip));
 	if (!withinLimits) {
 		return renderError("Too many requests. Please wait a minute and try again.", 429);
+	}
+
+	// An address under a guessing attack must stop being *issued* codes, not merely stop being
+	// guessable. This is the load-bearing half of the guard: LoginFlow caps attempts per challenge,
+	// so refusing to mint new challenges is what turns that per-flow cap into a real ceiling on the
+	// total number of guesses. It also stops the victim's inbox being the attack's delivery vehicle.
+	const guard = await guardCheck(env, emailHash);
+	if (guard.locked) {
+		return renderError(
+			`Too many failed sign-in attempts for this address. Try again in about ${retryMinutes(guard)} minute(s).`,
+			429,
+		);
 	}
 
 	const pin = generatePin();
@@ -269,7 +306,7 @@ async function requestCode(
 
 	return respond(
 		request,
-		pinFormPage({ tenant, email, notice: "Check your inbox for the 6-digit code." }),
+		pinFormPage({ tenant, email, flowId, notice: "Check your inbox for the 6-digit code." }),
 	);
 }
 
@@ -286,6 +323,9 @@ async function verifyCode(
 	const result = await stub.verifyPin(submittedHash);
 
 	if (result.ok) {
+		// Proof of possession ends the run outright, so a person who fumbles a few codes and then gets
+		// one right does not carry that history into their next sign-in.
+		await guardSuccess(env, await sha256Hex(result.email));
 		return completeSignIn(request, env, config.provider, tenant, result);
 	}
 
@@ -294,11 +334,20 @@ async function verifyCode(
 			return respond(request, alreadyUsed(tenant));
 		}
 		case "invalid": {
+			// Counted against the address, not the flow: opening a new flow is precisely how an
+			// attacker resets LoginFlow's five-attempt counter, and the guard is what survives that.
+			const verdict = result.emailHash
+				? await guardFailure(env, result.emailHash)
+				: { locked: false, retryAfterMs: 0 };
+			if (verdict.locked) {
+				return respond(request, identityLocked(tenant, retryMinutes(verdict)));
+			}
 			return respond(
 				request,
 				pinFormPage({
 					tenant,
 					email: "your email",
+					flowId,
 					error: "That code is incorrect. Please try again.",
 					status: 401,
 				}),
@@ -339,6 +388,7 @@ async function continueSso(
 	env: AuthWorkerEnv,
 	config: WorkerConfig,
 	stub: FlowStub,
+	flowId: string,
 	tenant: Tenant,
 ): Promise<Response> {
 	const sessionId = getCookie(request, SSO_COOKIE);
@@ -348,7 +398,10 @@ async function continueSso(
 	if (!linked) {
 		// The session lapsed between rendering the page and the click. Ask for an email instead of
 		// failing: the flow itself is still good.
-		return respond(request, emailFormPage({ tenant, siteKey: config.provider.turnstileSiteKey }));
+		return respond(
+			request,
+			emailFormPage({ tenant, siteKey: config.provider.turnstileSiteKey, flowId }),
+		);
 	}
 
 	const result = await stub.completeWithIdentity(linked.email);
@@ -402,6 +455,34 @@ function sessionExpired(): Screen {
 		title: "Sign-in session expired",
 		message: "This sign-in session has expired. Please return to the site and try again.",
 		status: 400,
+	});
+}
+
+/**
+ * The page was rendered for one sign-in and the browser now holds another. Benign in the ordinary
+ * case — a second sign-in opened in another tab — so the copy points at the fix rather than
+ * alarming anyone; the log line is where the malicious case shows up.
+ */
+function flowSuperseded(): Screen {
+	return errorPage({
+		title: "Start again",
+		message:
+			"Another sign-in was started in this browser, so this page is out of date. Return to the site and sign in again.",
+		status: 400,
+	});
+}
+
+/**
+ * Too many wrong codes for this address, counted across every flow it has opened. Deliberately says
+ * "this address" rather than naming it: the page is reachable by anyone holding the flow cookie,
+ * and the address behind a flow is never echoed back to a failed guess.
+ */
+export function identityLocked(tenant: Tenant, minutes: number): Screen {
+	return errorPage({
+		title: "Too many attempts",
+		message: `Too many incorrect codes have been entered for this address. Please wait about ${minutes} minute(s) and start again from ${tenant.displayName}.`,
+		status: 429,
+		tenant,
 	});
 }
 

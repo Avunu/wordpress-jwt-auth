@@ -83,4 +83,58 @@ final class ClaimsTest extends WordPressTestCase
         $this->assertFalse($claims->hasAudience(''));
         $this->assertFalse($claims->hasAudience('TESTCLIENT'));
     }
+
+    // ---------------------------------------------------------------------
+    // email_verified
+    // ---------------------------------------------------------------------
+
+    public function test_distinguishes_an_unverified_address_from_an_unstated_one(): void
+    {
+        // Three states, not two. Collapsing absent into false would break every provider that
+        // omits the claim; collapsing it into true would discard the warning when one says false.
+        $verified = Claims::fromPayload((object) ['email' => 'a@b.test', 'email_verified' => true]);
+        $unverified = Claims::fromPayload((object) ['email' => 'a@b.test', 'email_verified' => false]);
+        $unstated = Claims::fromPayload((object) ['email' => 'a@b.test']);
+
+        $this->assertTrue($verified->emailVerified);
+        $this->assertFalse($unverified->emailVerified);
+        $this->assertNull($unstated->emailVerified);
+    }
+
+    public function test_accepts_the_claim_as_a_string_as_some_providers_send_it(): void
+    {
+        $stringTrue = Claims::fromPayload((object) [
+            'email' => 'a@b.test',
+            'email_verified' => 'true',
+        ]);
+        $stringFalse = Claims::fromPayload((object) [
+            'email' => 'a@b.test',
+            'email_verified' => 'false',
+        ]);
+
+        $this->assertTrue($stringTrue->emailVerified);
+        $this->assertFalse($stringFalse->emailVerified);
+    }
+
+    public function test_treats_an_unrecognised_value_as_unstated_rather_than_verified(): void
+    {
+        // Anything we cannot read confidently must not be allowed to read as a positive assertion.
+        $claims = Claims::fromPayload((object) ['email' => 'a@b.test', 'email_verified' => 'yes']);
+
+        $this->assertNull($claims->emailVerified);
+    }
+
+    public function test_an_explicitly_unverified_address_is_never_adoptable(): void
+    {
+        $claims = new Claims(email: 'a@b.test', sub: 's', emailVerified: false);
+
+        $this->assertFalse($claims->emailIsAdoptable());
+    }
+
+    public function test_an_unstated_address_is_adoptable_by_default(): void
+    {
+        $claims = new Claims(email: 'a@b.test', sub: 's', emailVerified: null);
+
+        $this->assertTrue($claims->emailIsAdoptable());
+    }
 }

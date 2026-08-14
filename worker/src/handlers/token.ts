@@ -30,6 +30,19 @@ export async function handleToken(
 		return oauthError("invalid_client", "Unknown client.", 401);
 	}
 
+	// These are PKCE public clients: discovery advertises `token_endpoint_auth_methods_supported:
+	// ["none"]` and there are no client secrets to verify against. Accepting one and ignoring it is
+	// worse than refusing it — an operator who pastes a value into JWT_AUTH_CLIENT_SECRET reasonably
+	// believes they have added an authentication factor, and would get nothing while believing
+	// otherwise. Say so instead. An empty string is what the setup instructions print, so it passes.
+	if (body.client_secret) {
+		return oauthError(
+			"invalid_client",
+			"This provider uses PKCE public clients and does not accept a client secret. Leave JWT_AUTH_CLIENT_SECRET empty.",
+			401,
+		);
+	}
+
 	// The code is `${flowId}.${secret}` — recover the flow id to address its DO instance.
 	const dot = body.code.indexOf(".");
 	if (dot <= 0) {

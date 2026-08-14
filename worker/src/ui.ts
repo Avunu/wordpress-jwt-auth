@@ -169,6 +169,7 @@ export function redirectResponse(
 export function emailFormPage(opts: {
 	tenant: Tenant;
 	siteKey: string;
+	flowId: string;
 	error?: string;
 	status?: number;
 }): Screen {
@@ -183,6 +184,7 @@ export function emailFormPage(opts: {
        ${err}
        <form data-enhance method="post" action="/authorize" autocomplete="on">
          <input type="hidden" name="step" value="request_code">
+         <input type="hidden" name="flow" value="${esc(opts.flowId)}">
          <label for="email">Email address</label>
          <input id="email" name="email" type="email" required autofocus placeholder="you@example.com" autocomplete="email">
          <div class="cf-turnstile" data-sitekey="${esc(opts.siteKey)}"></div>
@@ -196,6 +198,7 @@ export function emailFormPage(opts: {
 export function pinFormPage(opts: {
 	tenant: Tenant;
 	email: string;
+	flowId: string;
 	notice?: string;
 	error?: string;
 	status?: number;
@@ -212,6 +215,7 @@ export function pinFormPage(opts: {
        ${notice}${err}
        <form data-enhance method="post" action="/authorize" autocomplete="off">
          <input type="hidden" name="step" value="verify_code">
+         <input type="hidden" name="flow" value="${esc(opts.flowId)}">
          <label for="pin">6-digit code</label>
          <input id="pin" name="pin" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
                 required autofocus autocomplete="one-time-code" placeholder="000000">
@@ -219,6 +223,7 @@ export function pinFormPage(opts: {
        </form>
        <form data-enhance method="post" action="/authorize" class="alt">
          <input type="hidden" name="step" value="change_email">
+         <input type="hidden" name="flow" value="${esc(opts.flowId)}">
          <button type="submit" class="linkbtn">Use a different email address</button>
        </form>
        <p class="muted">Didn't get it? Check spam, or use the link in the email.</p>`,
@@ -232,7 +237,7 @@ export function pinFormPage(opts: {
  * silent; this one screen is what keeps "signed in at one site" from quietly creating an account on
  * an unrelated brand, and it is the only place to switch identity mid-session.
  */
-export function continuePage(opts: { tenant: Tenant; email: string }): Screen {
+export function continuePage(opts: { tenant: Tenant; email: string; flowId: string }): Screen {
 	return {
 		title: "Continue",
 		tenant: opts.tenant,
@@ -242,10 +247,12 @@ export function continuePage(opts: { tenant: Tenant; email: string }): Screen {
        <p class="sub">You're signed in as ${esc(opts.email)}</p>
        <form data-enhance method="post" action="/authorize">
          <input type="hidden" name="step" value="continue_sso">
+         <input type="hidden" name="flow" value="${esc(opts.flowId)}">
          <button type="submit">Continue</button>
        </form>
        <form data-enhance method="post" action="/authorize" class="alt">
          <input type="hidden" name="step" value="change_email">
+         <input type="hidden" name="flow" value="${esc(opts.flowId)}">
          <button type="submit" class="linkbtn">Use a different email address</button>
        </form>`,
 			opts.tenant,
