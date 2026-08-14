@@ -30,6 +30,7 @@ export const MARKER_CLASS = "jwt-auth-sso";
 export async function bootPlayground({
 	wp = process.env.WP_VERSION ?? "latest",
 	port = 9410,
+	muPlugins = "mu-plugins",
 } = {}) {
 	if (!existsSync(resolve(REPO_ROOT, "build/woo-login.js"))) {
 		throw new Error("build/woo-login.js is missing — run `npm run build` in the repo root first.");
@@ -50,7 +51,11 @@ export async function bootPlayground({
 		mount: [
 			{ hostPath: REPO_ROOT, vfsPath: "/wordpress/wp-content/plugins/jwt-auth" },
 			{
-				hostPath: resolve(HARNESS_DIR, "mu-plugins"),
+				// Which mu-plugins directory is mounted decides which wp-config.php constants the
+				// plugin sees, and constants cannot be changed once PHP has them — so a suite that
+				// needs JWT_AUTH_EXCLUSIVE boots its own server with `mu-plugins-exclusive` rather
+				// than trying to toggle anything on a running one.
+				hostPath: resolve(HARNESS_DIR, muPlugins),
 				vfsPath: "/wordpress/wp-content/mu-plugins",
 			},
 		],

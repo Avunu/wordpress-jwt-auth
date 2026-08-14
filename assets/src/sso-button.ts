@@ -13,6 +13,12 @@
 // silently omits the server. It shipped a second button under every server-rendered one on
 // /my-account. Asking the document what it already contains covers both injectors at once, and
 // there is no state to keep in sync.
+//
+// Under JWT_AUTH_EXCLUSIVE the same injector *replaces* a form's contents rather than prepending to
+// them, and the marker guard is what makes that safe: the server has already swapped every template
+// WooCommerce renders a credential form from, so a form still standing here is a theme's or a
+// modal's — the one place password fields can survive that switch, and the one place emptying them
+// is the whole point.
 
 /** Class on the wrapper div. Both this script and WooCommerce::renderSsoButton() emit it. */
 export const MARKER_CLASS = "jwt-auth-sso";
@@ -44,7 +50,14 @@ export function readConfig(view: Window): JwtAuthConfig | null {
 	if (raw.loginUrl === "") {
 		return null;
 	}
-	return { loginUrl: raw.loginUrl, buttonLabel: raw.buttonLabel };
+	// `exclusive` is coerced rather than required: an older cached bundle paired with newer PHP (or
+	// the reverse) must not fail the shape check and disable the injector outright. Absent means the
+	// additive behaviour, which is the safe reading — it adds a button, it never removes fields.
+	return {
+		loginUrl: raw.loginUrl,
+		buttonLabel: raw.buttonLabel,
+		exclusive: raw.exclusive === true,
+	};
 }
 
 /** Build the button. Nodes and textContent, never innerHTML — the label is a site-owner string. */
@@ -66,12 +79,24 @@ export function buildButton(doc: Document, config: JwtAuthConfig): HTMLDivElemen
  *
  * Returns whether it injected, which is what makes "did the server already do this?" assertable in
  * a test rather than something you infer by counting nodes afterwards.
+ *
+ * In exclusive mode the button _replaces_ the form's contents. The guard above is what keeps that
+ * from being destructive on a page the server already handled: every form WooCommerce renders has
+ * had its template swapped and carries the marker, so the only forms reached here are ones no
+ * server-side hook could see — and in exclusive mode a password field in one of those is precisely
+ * what must not survive. Note this empties the form rather than removing it: themes style the
+ * wrapper, and a form that vanishes mid-page is a layout break, not a fix.
  */
 export function injectInto(form: Element, config: JwtAuthConfig): boolean {
 	if (form.querySelector(`.${MARKER_CLASS}`)) {
 		return false;
 	}
-	form.prepend(buildButton(form.ownerDocument, config));
+	const button = buildButton(form.ownerDocument, config);
+	if (config.exclusive) {
+		form.replaceChildren(button);
+	} else {
+		form.prepend(button);
+	}
 	return true;
 }
 

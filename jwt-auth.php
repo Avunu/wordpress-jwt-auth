@@ -54,6 +54,16 @@
  * --- UX ----------------------------------------------------------------------
  *   define('JWT_AUTH_REDIRECT',       '/');    // post-login destination
  *   define('JWT_AUTH_PROVIDER_NAME',  'SSO');  // WooCommerce button label
+ *
+ *   define('JWT_AUTH_EXCLUSIVE',      true);   // remove native password forms entirely
+ *
+ * JWT_AUTH_EXCLUSIVE makes the provider the only offer on the page rather than one of two. Without
+ * it, credentials are refused but the forms remain: WordPress's login block and wp_login_form(),
+ * WooCommerce's My Account and checkout forms, and "Lost your password?" all still render fields
+ * nothing can accept. With it, those are replaced by the sign-in button, and the WooCommerce flows
+ * that hand out a session *without* passing through the `authenticate` filter — password reset and
+ * registration, both of which call wc_set_customer_auth_cookie() — are closed. See ExclusiveLogin
+ * and the README for the full list of what it turns off.
  */
 
 declare(strict_types=1);
@@ -79,7 +89,7 @@ $jwtAuthVcsApi->enableReleaseAssets('/jwt-auth\.zip$/');
 // derives the version as ltrim(tag, 'v'), so the filter matches a bare version number.
 $jwtAuthVcsApi->setReleaseVersionFilter('/^\d+\.\d+\.\d+/');
 
-use JwtAuth\{AuthMode, Config, OidcClient, UserManager, Validator, WooCommerce};
+use JwtAuth\{AuthMode, Config, ExclusiveLogin, OidcClient, UserManager, Validator, WooCommerce};
 
 add_action('plugins_loaded', static function (): void {
     try {
@@ -124,5 +134,15 @@ add_action('plugins_loaded', static function (): void {
     if (class_exists('WooCommerce')) {
         add_action('woocommerce_login_form_start', WooCommerce::renderSsoButton(...));
         add_action('wp_enqueue_scripts', WooCommerce::enqueueAssets(...));
+    }
+
+    // JWT_AUTH_EXCLUSIVE: replace the native password forms instead of standing beside them.
+    //
+    // `plugins_loaded` is load-bearing for the WooCommerce half: it calls remove_action() on
+    // WC_Form_Handler's hooks, and those are attached while WooCommerce's plugin file is being
+    // included — earlier than any hook — so by now they exist to be removed. Moving this to `init`
+    // would also work; moving it to plugin-load time would not.
+    if (Config::exclusive()) {
+        ExclusiveLogin::register();
     }
 });

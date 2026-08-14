@@ -114,6 +114,21 @@ final class Config
     // UX
     // -------------------------------------------------------------------------
 
+    /**
+     * Whether native username/password forms are removed rather than merely refused.
+     *
+     * Off by default, and the difference is presentational rather than a security boundary:
+     * Validator::blockDirectAuth() already refuses every credential, so a password box on a site
+     * running this plugin is a control that cannot succeed. What it does buy is that visitors are
+     * not offered a choice between two paths where only one works — and it closes the credential
+     * flows WooCommerce runs *outside* the `authenticate` filter, which are a boundary. See
+     * ExclusiveLogin.
+     */
+    public static function exclusive(): bool
+    {
+        return defined('JWT_AUTH_EXCLUSIVE') && JWT_AUTH_EXCLUSIVE;
+    }
+
     public static function redirect(): string
     {
         return defined('JWT_AUTH_REDIRECT') ? JWT_AUTH_REDIRECT : '/';

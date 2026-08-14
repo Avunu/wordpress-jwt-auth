@@ -116,8 +116,10 @@
             # -L dereferences: composition-c4 installs vendor/ as symlinks into the
             # Nix store; the distributable plugin must contain real, self-contained files.
             # `build` is the compiled browser asset; `assets/` now holds only TypeScript
-            # sources, which have no business in the distributable.
-            cp -rL src vendor build "$pluginDir/"
+            # sources, which have no business in the distributable. `templates` is the
+            # WooCommerce override set JWT_AUTH_EXCLUSIVE substitutes — omit it and
+            # ExclusiveLogin::wooTemplate() falls back to WooCommerce's password forms.
+            cp -rL src vendor build templates "$pluginDir/"
 
             # Stamp the WordPress plugin header version from composer.json, which is the
             # single source of truth (Release Please bumps it). WordPress and the update

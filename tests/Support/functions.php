@@ -16,12 +16,19 @@ use JwtAuth\Tests\Support\WpState;
 if (!class_exists('WP_Error')) {
     class WP_Error
     {
+        /** @var list<array{code: string, message: string}> */
+        public array $errors = [];
+
         /** @param array<string, mixed> $data */
         public function __construct(
             private string $code = '',
             private string $message = '',
             private array $data = [],
-        ) {}
+        ) {
+            if ($code !== '') {
+                $this->errors[] = ['code' => $code, 'message' => $message];
+            }
+        }
 
         public function get_error_code(): string
         {
@@ -32,7 +39,33 @@ if (!class_exists('WP_Error')) {
         {
             return $this->message;
         }
+
+        /**
+         * WordPress accumulates into a WP_Error rather than replacing it, and the plugin relies on
+         * that: `lostpassword_post` and `woocommerce_process_registration_errors` both hand callbacks
+         * a shared error bag whose first code is what the caller reports.
+         */
+        public function add(string $code, string $message = '', mixed $data = null): void
+        {
+            if ($this->code === '') {
+                $this->code = $code;
+                $this->message = $message;
+            }
+            $this->errors[] = ['code' => $code, 'message' => $message];
+        }
+
+        public function has_errors(): bool
+        {
+            return $this->errors !== [];
+        }
     }
+}
+
+// A site with WooCommerce active. Declared unconditionally because the alternative — a fake that
+// reports WooCommerce absent — would silently skip the half of ExclusiveLogin::register() that
+// matters most, and every WooCommerce test here already assumes the plugin is present.
+if (!class_exists('WooCommerce')) {
+    class WooCommerce {}
 }
 
 if (!class_exists('WP_User')) {
@@ -273,6 +306,57 @@ function get_option(string $option, mixed $default = false): mixed
 function do_action(string $hook, mixed ...$args): void
 {
     WpState::$actions[] = ['hook' => $hook, 'args' => $args];
+}
+
+// ---------------------------------------------------------------------------
+// Action registration
+//
+// Actions are filters in WordPress, and the fake keeps them in the same shape as $filters so a test
+// can assert *where* a callback was attached. That is the interesting question for ExclusiveLogin:
+// its refusals are only as good as the priority and the hook name they sit on, exactly as the
+// `authenticate` ordering bug demonstrated.
+// ---------------------------------------------------------------------------
+
+function add_action(string $hook, callable $callback, int $priority = 10, int $args = 1): bool
+{
+    WpState::$addedActions[$hook][$priority][] = $callback;
+    return true;
+}
+
+/**
+ * Drops a callback, and records the attempt.
+ *
+ * The recording is the point. remove_action() is how the plugin closes WooCommerce's own
+ * password-reset and registration handlers, and a call naming a hook, method or priority WooCommerce
+ * has since changed fails *silently* — WordPress returns false and nothing else happens. The fake
+ * cannot know whether the target exists on a real install, so the assertion available to a test is
+ * that the exact triple was asked for; tests/playground checks it against real WooCommerce.
+ *
+ * @param string|array<int, string>|\Closure $callback
+ */
+function remove_action(string $hook, string|array|\Closure $callback, int $priority = 10): bool
+{
+    $id = is_array($callback)
+        ? implode('::', array_map(strval(...), $callback))
+        : (is_string($callback) ? $callback : 'Closure');
+
+    WpState::$removedActions[] = ['hook' => $hook, 'callback' => $id, 'priority' => $priority];
+
+    $existing = WpState::$addedActions[$hook][$priority] ?? [];
+    $kept = array_values(array_filter($existing, static fn(callable $c): bool => $c !== $callback));
+    WpState::$addedActions[$hook][$priority] = $kept;
+
+    return count($kept) !== count($existing);
+}
+
+function __return_false(): bool
+{
+    return false;
+}
+
+function __return_true(): bool
+{
+    return true;
 }
 
 // ---------------------------------------------------------------------------
