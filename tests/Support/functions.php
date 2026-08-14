@@ -186,9 +186,32 @@ function esc_html(string $text): string
     return htmlspecialchars($text, ENT_QUOTES);
 }
 
+function esc_attr(string $text): string
+{
+    return htmlspecialchars($text, ENT_QUOTES);
+}
+
+/** WordPress's wrapper adds error handling and a few default flags; the encoding is json_encode. */
+function wp_json_encode(mixed $data): string|false
+{
+    return json_encode($data);
+}
+
 function plugin_dir_url(string $file): string
 {
     return 'https://example.test/wp-content/plugins/jwt-auth/';
+}
+
+/**
+ * The filesystem root the plugin reads its build manifest from.
+ *
+ * Points at a fixture, not the real repo, so the suite says the same thing whether or not
+ * `npm run build` has run — the Nix phpunit check has Composer but no Node. Tests that want the
+ * unbuilt branch move WpState::$pluginDir somewhere without a build/ directory.
+ */
+function plugin_dir_path(string $file): string
+{
+    return WpState::$pluginDir;
 }
 
 // ---------------------------------------------------------------------------
@@ -420,11 +443,18 @@ function wp_enqueue_script(
     array|bool $args = false,
 ): void {
     WpState::$enqueuedScripts[] = $handle;
+    WpState::$scriptVersions[$handle] = $ver;
 }
 
 /** @param array<string, mixed> $data */
 function wp_localize_script(string $handle, string $name, array $data): bool
 {
     WpState::$localizedScripts[] = ['handle' => $handle, 'data' => $data];
+    return true;
+}
+
+function wp_add_inline_script(string $handle, string $data, string $position = 'after'): bool
+{
+    WpState::$inlineScripts[] = ['handle' => $handle, 'data' => $data, 'position' => $position];
     return true;
 }

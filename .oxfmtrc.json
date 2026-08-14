@@ -1,0 +1,20 @@
+{
+	"$schema": "./node_modules/oxfmt/configuration_schema.json",
+	// Markdown is excluded wholesale, not just CHANGELOG.md. The prose here is hand-formatted
+	// (setext-style `* * *` rules, padded list markers, unaligned tables) and oxfmt rewrites all of
+	// it — 140 lines of churn in README.md alone, none of it a change anybody made. Code is what
+	// this formatter is here to keep consistent.
+	"ignorePatterns": [
+		".release-please",
+		"**/*.md",
+		"build",
+		"composer.json",
+		"composer.lock",
+		"node_modules",
+		"package-lock.json",
+		"vendor",
+		"worker"
+	],
+	"jsdoc": true,
+	"useTabs": true
+}

@@ -1,4 +1,8 @@
 vendor
+node_modules
+# Anchored: an unanchored `build` also swallows tests/Fixtures/plugin-built/build/, the committed
+# stand-in that lets the PHP suite assert how enqueueAssets() reads the manifest without Node.
+/build
 .devenv
 .direnv
 .phpunit.cache

@@ -1,11 +1,17 @@
 name: Check
 
 # Quality gates on every push and pull request (so Dependabot PRs are gated before
-# auto-merge). Three jobs, each run only when something it actually inspects changed:
+# auto-merge). Four jobs, each run only when something it actually inspects changed:
 #   • worker  — the worker package's OXC/TypeScript gate (oxfmt + oxlint + type-aware + tsc) + tests
+#   • assets  — the browser bundle's identical gate, plus jsdom and wp-playground tests
 #   • phpstan — PHP static analysis (level 8, WordPress-aware) via the flake's checks.phpstan
 #   • phpunit — the plugin's test suite via the flake's checks.phpunit
 # The release build (release.yml) is separate.
+#
+# `assets` runs on a plain runner rather than through the flake, matching how `worker` is gated:
+# the TypeScript toolchain needs node_modules, which the read-only `nix flake check` sandbox has no
+# way to populate. Nix still *builds* the bundle (packages.default runs `npm run build` via
+# importNpmLock) — it just does not lint it.
 #
 # Filtering happens per *job*, via a `changes` job the others depend on, rather than with
 # `on.push.paths` at the workflow level. That distinction matters: a workflow suppressed by a path
@@ -23,6 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       worker: ${{ steps.filter.outputs.worker }}
+      assets: ${{ steps.filter.outputs.assets }}
       php: ${{ steps.filter.outputs.php }}
     steps:
       # Full history: on `push` the filter diffs against the previous commit, which a shallow
@@ -40,10 +47,25 @@ jobs:
             worker:
               - 'worker/**'
               - '.github/workflows/check.yml'
+            assets:
+              - 'assets/**'
+              - 'types/**'
+              - 'tests/dom/**'
+              - 'tests/playground/**'
+              - 'src/WooCommerce.php'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'tsconfig.json'
+              - 'tsconfig.node.json'
+              - 'rolldown.config.ts'
+              - 'vitest.config.ts'
+              - '.oxlintrc.json'
+              - '.oxlintrc.typecheck.json'
+              - '.oxfmtrc.json'
+              - '.github/workflows/check.yml'
             php:
               - 'src/**'
               - 'tests/**'
-              - 'assets/**'
               - 'jwt-auth.php'
               - 'composer.json'
               - 'composer.lock'
@@ -75,6 +97,53 @@ jobs:
       - run: npm run check
 
       - run: npm test
+
+  assets:
+    needs: changes
+    if: ${{ needs.changes.outputs.assets == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          # Both lockfiles: the playground harness is a separate package on purpose, so its heavy
+          # deps stay out of the lockfile the Nix build consumes.
+          cache-dependency-path: |
+            package-lock.json
+            tests/playground/package-lock.json
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+
+      # The plugin's entrypoint requires vendor/autoload.php unconditionally, so playground would
+      # fatal on activation without this.
+      - run: composer install --no-dev --optimize-autoloader
+
+      - run: npm ci
+
+      - run: npm run check
+
+      - run: npm run build
+
+      - run: npm test
+
+      - run: npm --prefix tests/playground ci
+
+      - run: npm run test:assets
+
+      - run: npm run test:e2e
+
+      - uses: browser-actions/setup-chrome@v2
+        id: setup-chrome
+
+      # The only test that can see a client-side duplicate button; see tests/playground/README.md.
+      - run: npm run test:browser
+        env:
+          CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
 
   phpstan:
     needs: changes

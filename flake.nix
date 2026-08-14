@@ -60,6 +60,16 @@
           inherit src;
         };
 
+        # -------------------------------------------------------------- #
+        # Browser asset dependencies                                     #
+        # importNpmLock reads package-lock.json directly, so there is no #
+        # npmDepsHash to bump by hand on every dependency change.        #
+        # -------------------------------------------------------------- #
+        npmDeps = pkgs.importNpmLock.buildNodeModules {
+          npmRoot = ./.;
+          inherit nodejs;
+        };
+
         # ---------------------------------------------------------------- #
         # Final plugin assembly                                            #
         # ---------------------------------------------------------------- #
@@ -69,17 +79,22 @@
             version
             src
             composerDeps
+            npmDeps
             ;
 
           nativeBuildInputs = [
             php
             php.packages.composer
             pkgs.c4.composerSetupHook
+            nodejs
+            pkgs.importNpmLock.npmConfigHook
           ];
 
           buildPhase = ''
             runHook preBuild
             composer --no-ansi install --no-dev --no-interaction --optimize-autoloader
+            # Emits build/woo-login.js + build/woo-login.asset.php, which the installPhase copies.
+            npm run build
             runHook postBuild
           '';
 
@@ -92,7 +107,9 @@
             cp jwt-auth.php README.md LICENSE "$pluginDir/"
             # -L dereferences: composition-c4 installs vendor/ as symlinks into the
             # Nix store; the distributable plugin must contain real, self-contained files.
-            cp -rL src vendor assets "$pluginDir/"
+            # `build` is the compiled browser asset; `assets/` now holds only TypeScript
+            # sources, which have no business in the distributable.
+            cp -rL src vendor build "$pluginDir/"
 
             # Stamp the WordPress plugin header version from composer.json, which is the
             # single source of truth (Release Please bumps it). WordPress and the update
@@ -137,6 +154,14 @@
               name = "worker checks (oxfmt + oxlint + tsc)";
               entry = "${nodejs}/bin/npm --prefix worker run check";
               files = "^worker/.*\\.(ts|json|jsonc)$";
+              pass_filenames = false;
+              stages = [ "pre-push" ];
+            };
+            assets-check = {
+              enable = true;
+              name = "browser asset checks (oxfmt + oxlint + tsc)";
+              entry = "${nodejs}/bin/npm run check";
+              files = "^(assets|types|tests/dom)/.*\\.ts$|^(rolldown|vitest)\\.config\\.ts$";
               pass_filenames = false;
               stages = [ "pre-push" ];
             };

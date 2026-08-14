@@ -188,12 +188,22 @@ The hook runs at **priority 30**, which is the part that makes this true rather 
 
 ### WooCommerce
 
-On My Account and Checkout pages, a **"Sign in with SSO"** button is injected:
+A **"Sign in with SSO"** button is added to WooCommerce login forms, in OIDC mode only. In proxy
+mode users are authenticated before the page renders, so there is nothing to sign in to.
 
--   Into classic WooCommerce login forms via the `woocommerce_login_form_start` PHP hook.
--   Into block-rendered forms via a small `MutationObserver` script (`assets/woo-login.js`).
+The server does the work. `woocommerce_login_form_start` fires inside the classic login form in
+both templates WooCommerce renders one from — `myaccount/form-login.php` and `global/form-login.php`
+(reached from Checkout and the pay/order-received pages) — so My Account and Checkout are both
+covered, and the button still works with JavaScript switched off.
 
-The button is only shown in OIDC mode. In proxy mode, users are automatically authenticated before the page renders.
+A small script (`build/woo-login.js`, built from `assets/src/`) covers only what a server-side hook
+cannot see: a login form added to the page *after* the response, by an AJAX-rendering theme or a
+login modal. It skips any form that already contains a button, so on an ordinary page it adds
+nothing at all.
+
+> Both injectors mark their wrapper `.jwt-auth-sso`, and that shared class is what keeps them from
+> colliding. Before 3.0.1 the script tracked only its own work, and prepended a second button under
+> every server-rendered one on My Account.
 
 * * *
 
@@ -230,6 +240,38 @@ tampered payload are each refused.
 Both gates run in CI on every push and pull request, offline, via the flake
 (`nix build .#checks.x86_64-linux.phpunit` and `.phpstan`) — the same commands you can run locally.
 The worker package has its own suite; see [`worker/README.md`](worker/README.md).
+
+### Browser assets
+
+The WooCommerce fallback script is TypeScript, bundled by [rolldown](https://rolldown.rs/) and
+checked with [oxlint](https://oxc.rs/) / oxfmt — the same toolchain the worker uses.
+
+```bash
+npm ci
+npm run check          # oxfmt + oxlint + type-aware lint + tsc
+npm run build          # assets/src/*.ts -> build/woo-login.js + build/woo-login.asset.php
+npm test               # vitest + jsdom
+```
+
+`build/` is generated and gitignored; `nix build .#zip` runs the bundler itself (via
+`importNpmLock`, so there is no dependency hash to maintain) and ships the output in the plugin zip.
+The version WordPress caches against is the bundle's own content hash, read from the generated
+`woo-login.asset.php`.
+
+Three further tests boot **real WordPress and real WooCommerce** on WASM PHP — no Docker, no
+database:
+
+```bash
+npm --prefix tests/playground ci
+npm run test:assets    # the build manifest matches what enqueueAssets() requires
+npm run test:e2e       # logged-out /my-account returns exactly one button
+npm run test:browser   # headless Chrome: exactly one button after the script has run
+```
+
+That last one earns its keep. The duplicate-button bug lived only in the post-script DOM — PHP
+emitted one button, the script added another, and every server-side assertion still counted one.
+See [`tests/playground/README.md`](tests/playground/README.md), which also documents how to
+reintroduce the bug and watch the checks fail.
 
 * * *
 

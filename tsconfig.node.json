@@ -1,0 +1,21 @@
+{
+	// Second program, for the Node-side build tooling. The root tsconfig.json describes the browser
+	// bundle (no node types, DOM lib), so the rolldown config — which imports node: builtins and
+	// reads import.meta.url — cannot live in it without leaking Node globals into assets/src.
+	//
+	// tsconfig.json references this project so the type-aware lint pass resolves rolldown.config.ts
+	// to a real program; a referenced project must be composite and must emit, so declarations go to
+	// a throwaway path under node_modules (never `build/`, which ships in the plugin zip).
+	"extends": "./tsconfig.json",
+	"compilerOptions": {
+		"target": "ES2022",
+		"lib": ["ES2023"],
+		"types": ["node"],
+		"composite": true,
+		"noEmit": false,
+		"emitDeclarationOnly": true,
+		"declarationDir": "node_modules/.cache/tsconfig-node",
+		"tsBuildInfoFile": "node_modules/.cache/tsconfig-node/tsconfig.node.tsbuildinfo"
+	},
+	"include": ["rolldown.config.ts", "vitest.config.ts"]
+}

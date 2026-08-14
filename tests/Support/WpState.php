@@ -49,8 +49,29 @@ final class WpState
     /** @var list<array{handle: string, data: array<string, mixed>}> */
     public static array $localizedScripts = [];
 
+    /** @var list<array{handle: string, data: string, position: string}> */
+    public static array $inlineScripts = [];
+
     /** @var list<string> */
     public static array $enqueuedScripts = [];
+
+    /** @var array<string, string|bool|null> handle => version passed to wp_enqueue_script */
+    public static array $scriptVersions = [];
+
+    /**
+     * What plugin_dir_path() returns — the root the plugin looks for build/woo-login.asset.php in.
+     *
+     * Defaults to a fixture carrying a built bundle, so the suite behaves identically with or
+     * without `npm run build`. Point it at a directory with no build/ to exercise the source-
+     * checkout branch.
+     */
+    public static string $pluginDir = self::BUILT_FIXTURE;
+
+    /** Fixture plugin root that contains a build/ directory. */
+    public const BUILT_FIXTURE = __DIR__ . '/../Fixtures/plugin-built/';
+
+    /** Fixture plugin root with no build/ directory — a checkout that never ran the asset build. */
+    public const UNBUILT_FIXTURE = __DIR__ . '/../Fixtures/';
 
     public static int $currentUserId = 0;
     public static bool $loggedIn = false;
@@ -89,7 +110,10 @@ final class WpState
         self::$filters = [];
         self::$cookiesSet = [];
         self::$localizedScripts = [];
+        self::$inlineScripts = [];
         self::$enqueuedScripts = [];
+        self::$scriptVersions = [];
+        self::$pluginDir = self::BUILT_FIXTURE;
         self::$currentUserId = 0;
         self::$loggedIn = false;
         self::$authCookieCleared = false;
