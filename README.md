@@ -178,7 +178,7 @@ What still works with the box unticked:
 What a turned-away visitor sees:
 
 -   **OIDC mode** — the plugin bounces them through the provider's `end_session_endpoint` and back to `/?jwt_auth_denied=1`, which renders a 403 notice. Ending the provider session matters: otherwise the next attempt silently replays the same rejected identity with no chance to choose a different account. If the provider advertises no end-session endpoint (or `JWT_AUTH_LOGOUT_URL` is set, which the plugin cannot append a return URL to), the notice is shown immediately instead, with a sign-out link when one is configured.
--   **Proxy mode** — they browse the public site anonymously, because the plugin validates a token on *every* unauthenticated request and an error page there would lock them out of pages they are allowed to read. The 403 notice appears on `wp-admin` and `wp-login.php`, the requests that exist to get somebody signed in. Ajax, cron, and WP-CLI are exempt.
+-   **Proxy mode** — they browse the public site anonymously, because the plugin validates a token on _every_ unauthenticated request and an error page there would lock them out of pages they are allowed to read. The 403 notice appears on `wp-admin` and `wp-login.php`, the requests that exist to get somebody signed in. Ajax, cron, and WP-CLI are exempt.
 
 ### Direct login is blocked
 
@@ -188,22 +188,13 @@ The hook runs at **priority 30**, which is the part that makes this true rather 
 
 ### WooCommerce
 
-A **"Sign in with SSO"** button is added to WooCommerce login forms, in OIDC mode only. In proxy
-mode users are authenticated before the page renders, so there is nothing to sign in to.
+A **"Sign in with SSO"** button is added to WooCommerce login forms, in OIDC mode only. In proxy mode users are authenticated before the page renders, so there is nothing to sign in to.
 
-The server does the work. `woocommerce_login_form_start` fires inside the classic login form in
-both templates WooCommerce renders one from — `myaccount/form-login.php` and `global/form-login.php`
-(reached from Checkout and the pay/order-received pages) — so My Account and Checkout are both
-covered, and the button still works with JavaScript switched off.
+The server does the work. `woocommerce_login_form_start` fires inside the classic login form in both templates WooCommerce renders one from — `myaccount/form-login.php` and `global/form-login.php` (reached from Checkout and the pay/order-received pages) — so My Account and Checkout are both covered, and the button still works with JavaScript switched off.
 
-A small script (`build/woo-login.js`, built from `assets/src/`) covers only what a server-side hook
-cannot see: a login form added to the page *after* the response, by an AJAX-rendering theme or a
-login modal. It skips any form that already contains a button, so on an ordinary page it adds
-nothing at all.
+A small script (`build/woo-login.js`, built from `assets/src/`) covers only what a server-side hook cannot see: a login form added to the page _after_ the response, by an AJAX-rendering theme or a login modal. It skips any form that already contains a button, so on an ordinary page it adds nothing at all.
 
-> Both injectors mark their wrapper `.jwt-auth-sso`, and that shared class is what keeps them from
-> colliding. Before 3.0.1 the script tracked only its own work, and prepended a second button under
-> every server-rendered one on My Account.
+> Both injectors mark their wrapper `.jwt-auth-sso`, and that shared class is what keeps them from colliding. Before 3.0.1 the script tracked only its own work, and prepended a second button under every server-rendered one on My Account.
 
 * * *
 
@@ -227,24 +218,15 @@ composer phpstan       # static analysis, level 8, WordPress-aware
 composer check         # both
 ```
 
-The plugin's suite runs against a small in-memory fake of the WordPress functions it calls
-([`tests/Support/functions.php`](tests/Support/functions.php)) rather than a real WordPress install,
-so it needs no database and finishes in well under a second. `wp_die()` and `wp_redirect()` throw
-instead of terminating, which is what makes the callback and redirect paths assertable.
+The plugin's suite runs against a small in-memory fake of the WordPress functions it calls ([`tests/Support/functions.php`](tests/Support/functions.php)) rather than a real WordPress install, so it needs no database and finishes in well under a second. `wp_die()` and `wp_redirect()` throw instead of terminating, which is what makes the callback and redirect paths assertable.
 
-The crypto is real: [`KeyFixture`](tests/Support/KeyFixture.php) generates actual RSA keys and signs
-actual tokens, so the negative tests genuinely demonstrate that a forgery is rejected — `alg: none`,
-an HS256 token signed with the published public key, a token signed by an unadvertised key, and a
-tampered payload are each refused.
+The crypto is real: [`KeyFixture`](tests/Support/KeyFixture.php) generates actual RSA keys and signs actual tokens, so the negative tests genuinely demonstrate that a forgery is rejected — `alg: none`, an HS256 token signed with the published public key, a token signed by an unadvertised key, and a tampered payload are each refused.
 
-Both gates run in CI on every push and pull request, offline, via the flake
-(`nix build .#checks.x86_64-linux.phpunit` and `.phpstan`) — the same commands you can run locally.
-The worker package has its own suite; see [`worker/README.md`](worker/README.md).
+Both gates run in CI on every push and pull request, offline, via the flake (`nix build .#checks.x86_64-linux.phpunit` and `.phpstan`) — the same commands you can run locally. The worker package has its own suite; see [`worker/README.md`](worker/README.md).
 
 ### Browser assets
 
-The WooCommerce fallback script is TypeScript, bundled by [rolldown](https://rolldown.rs/) and
-checked with [oxlint](https://oxc.rs/) / oxfmt — the same toolchain the worker uses.
+The WooCommerce fallback script is TypeScript, bundled by [rolldown](https://rolldown.rs/) and checked with [oxlint](https://oxc.rs/) / oxfmt — the same toolchain the worker uses.
 
 ```bash
 npm ci
@@ -253,13 +235,9 @@ npm run build          # assets/src/*.ts -> build/woo-login.js + build/woo-login
 npm test               # vitest + jsdom
 ```
 
-`build/` is generated and gitignored; `nix build .#zip` runs the bundler itself (via
-`importNpmLock`, so there is no dependency hash to maintain) and ships the output in the plugin zip.
-The version WordPress caches against is the bundle's own content hash, read from the generated
-`woo-login.asset.php`.
+`build/` is generated and gitignored; `nix build .#zip` runs the bundler itself (via `importNpmLock`, so there is no dependency hash to maintain) and ships the output in the plugin zip. The version WordPress caches against is the bundle's own content hash, read from the generated `woo-login.asset.php`.
 
-Three further tests boot **real WordPress and real WooCommerce** on WASM PHP — no Docker, no
-database:
+Three further tests boot **real WordPress and real WooCommerce** on WASM PHP — no Docker, no database:
 
 ```bash
 npm --prefix tests/playground ci
@@ -268,10 +246,7 @@ npm run test:e2e       # logged-out /my-account returns exactly one button
 npm run test:browser   # headless Chrome: exactly one button after the script has run
 ```
 
-That last one earns its keep. The duplicate-button bug lived only in the post-script DOM — PHP
-emitted one button, the script added another, and every server-side assertion still counted one.
-See [`tests/playground/README.md`](tests/playground/README.md), which also documents how to
-reintroduce the bug and watch the checks fail.
+That last one earns its keep. The duplicate-button bug lived only in the post-script DOM — PHP emitted one button, the script added another, and every server-side assertion still counted one. See [`tests/playground/README.md`](tests/playground/README.md), which also documents how to reintroduce the bug and watch the checks fail.
 
 * * *
 
