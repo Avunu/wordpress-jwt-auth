@@ -43,12 +43,12 @@
 		"typecheck:dom": "tsc -p test/dom/tsconfig.json --noEmit"
 	},
 	"dependencies": {
-		"jose": "6.2.9",
+		"jose": "6.2.10",
 		"zod": "4.4.3"
 	},
 	"devDependencies": {
 		"@cloudflare/vitest-pool-workers": "^0.22.0",
-		"@cloudflare/workers-types": "^5.20260821.1",
+		"@cloudflare/workers-types": "^5.20260822.1",
 		"jsdom": "^30.0.1",
 		"oxfmt": "^0.64.0",
 		"oxlint": "^1.79.0",
