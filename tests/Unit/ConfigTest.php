@@ -8,6 +8,7 @@ use JwtAuth\AuthMode;
 use JwtAuth\Claims;
 use JwtAuth\Config;
 use JwtAuth\Tests\Support\WordPressTestCase;
+use JwtAuth\Tests\Support\WpState;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
@@ -87,6 +88,44 @@ final class ConfigTest extends WordPressTestCase
     {
         $this->assertSame('/', Config::redirect());
         $this->assertSame('SSO', Config::providerName());
+    }
+
+    public function test_production_signs_in_through_the_provider(): void
+    {
+        WpState::$environmentType = 'production';
+        $this->assertFalse(Config::nativeLogin());
+
+        WpState::$environmentType = 'staging';
+        $this->assertFalse(Config::nativeLogin());
+    }
+
+    public function test_a_development_environment_signs_in_with_wordpress_passwords(): void
+    {
+        WpState::$environmentType = 'development';
+        $this->assertTrue(Config::nativeLogin());
+
+        WpState::$environmentType = 'local';
+        $this->assertTrue(Config::nativeLogin());
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function test_native_login_can_be_forced_off_to_exercise_the_provider_in_development(): void
+    {
+        define('JWT_AUTH_NATIVE_LOGIN', false);
+        WpState::$environmentType = 'development';
+
+        $this->assertFalse(Config::nativeLogin());
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function test_native_login_can_be_forced_on_anywhere(): void
+    {
+        define('JWT_AUTH_NATIVE_LOGIN', true);
+        WpState::$environmentType = 'production';
+
+        $this->assertTrue(Config::nativeLogin());
     }
 
     public function test_callback_url_is_the_site_root_flagged_for_the_plugin(): void

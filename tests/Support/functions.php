@@ -293,6 +293,11 @@ function is_admin(): bool
     return WpState::$isAdmin;
 }
 
+function wp_get_environment_type(): string
+{
+    return WpState::$environmentType;
+}
+
 /** Only the options the plugin reads; anything else is a miss, as it would be on a fresh install. */
 function get_option(string $option, mixed $default = false): mixed
 {

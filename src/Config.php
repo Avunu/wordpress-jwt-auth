@@ -21,6 +21,24 @@ final class Config
         };
     }
 
+    /**
+     * Whether the site should sign people in with WordPress passwords and leave the provider out.
+     *
+     * True in a `local` or `development` environment (`WP_ENVIRONMENT_TYPE`), where the provider is
+     * usually unreachable anyway: the callback URL is `http://127.0.0.1:<port>/…`, which no provider
+     * has registered, so the OIDC flow could not complete even if the plugin intercepted the login
+     * screen — it would only lock the developer out. `JWT_AUTH_NATIVE_LOGIN` overrides the
+     * environment in either direction: `true` to stand down anywhere (a staging site without a
+     * provider), `false` to exercise the provider flow from a development environment.
+     */
+    public static function nativeLogin(): bool
+    {
+        if (defined('JWT_AUTH_NATIVE_LOGIN')) {
+            return (bool) JWT_AUTH_NATIVE_LOGIN;
+        }
+        return in_array(wp_get_environment_type(), ['local', 'development'], true);
+    }
+
     // -------------------------------------------------------------------------
     // OIDC mode
     // -------------------------------------------------------------------------
