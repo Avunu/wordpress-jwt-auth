@@ -1,5 +1,20 @@
 # Changelog
 
+## [4.2.0](https://github.com/Avunu/wordpress-jwt-auth/compare/v4.1.0...v4.2.0) (2026-09-16)
+
+
+### Features
+
+* sign in with WordPress passwords in a development environment ([d1743b3](https://github.com/Avunu/wordpress-jwt-auth/commit/d1743b341e2725f135ccbaed2340c2bdd506f5f1))
+* sign in with WordPress passwords in a development environment ([ab3b550](https://github.com/Avunu/wordpress-jwt-auth/commit/ab3b55084e73705bac836f50da6eecc37cec0875))
+
+
+### Miscellaneous Chores
+
+* bump php-stubs/woocommerce-stubs in the composer group ([#71](https://github.com/Avunu/wordpress-jwt-auth/issues/71)) ([009eb46](https://github.com/Avunu/wordpress-jwt-auth/commit/009eb469c120180c7632e6b468b8695d696683db))
+* bump php-stubs/wordpress-stubs in the composer group ([#65](https://github.com/Avunu/wordpress-jwt-auth/issues/65)) ([8f2f1d0](https://github.com/Avunu/wordpress-jwt-auth/commit/8f2f1d08fa1faf8375908198a9f17e06b0f81aa2))
+* bump szepeviktor/phpstan-wordpress in the composer group ([#64](https://github.com/Avunu/wordpress-jwt-auth/issues/64)) ([5f6d46a](https://github.com/Avunu/wordpress-jwt-auth/commit/5f6d46a1c38fe26a5f1bbd77353edf1d78e64f67))
+
 ## [4.1.0](https://github.com/Avunu/wordpress-jwt-auth/compare/v4.0.0...v4.1.0) (2026-08-14)
 
 
