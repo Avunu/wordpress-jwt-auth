@@ -136,6 +136,7 @@ The worker's source lives in [`worker/`](worker/) and is published to GitHub Pac
 | JWT_AUTH_REDIRECT | / | Post-login redirect destination. |
 | JWT_AUTH_PROVIDER_NAME | SSO | Provider label shown in the WooCommerce sign-in button. |
 | JWT_AUTH_EXCLUSIVE | false | Remove the native password forms instead of standing beside them. See [Exclusive mode](#exclusive-mode). |
+| JWT_AUTH_NATIVE_LOGIN | by environment | `true`: sign in with WordPress passwords and leave the provider out; `false`: never. Unset, this is decided by `WP_ENVIRONMENT_TYPE`. See [Local development](#local-development). |
 
 * * *
 
@@ -234,6 +235,12 @@ Two consequences worth knowing before you switch it on:
 -   If a site has guest checkout disabled, checkout now requires signing in through the provider — which is the intended reading of "registration required, passwords unavailable", but it is a change in the purchase flow.
 
 Nothing about the switch is a second line of defence for credentials: `authenticate` is still the boundary, and it is on whether or not this is set.
+
+### Local development
+
+In a `local` or `development` environment (`WP_ENVIRONMENT_TYPE`), the plugin stands down: none of its hooks are registered, WordPress signs people in with passwords, and the login screen says so. The provider is normally unreachable from there anyway — the callback URL would be `http://127.0.0.1:<port>/…`, which no provider has registered — so intercepting the login screen could only lock the developer out.
+
+`define('JWT_AUTH_NATIVE_LOGIN', false);` exercises the provider flow from a development environment regardless; `define('JWT_AUTH_NATIVE_LOGIN', true);` stands down anywhere, for a staging site without a provider. Every other constant is ignored while standing down, including [`JWT_AUTH_EXCLUSIVE`](#exclusive-mode).
 
 ### WooCommerce
 

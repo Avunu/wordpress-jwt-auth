@@ -61,7 +61,7 @@ final class WooCommerce
         $assetFile = $dir . 'build/woo-login.asset.php';
         if (!is_file($assetFile) || !is_file($dir . 'build/woo-login.js')) return;
 
-        /** @var array{dependencies: array<int, string>, version: string} $asset */
+        /** @var array{dependencies: array<int, non-empty-string>, version: string} $asset */
         $asset = require $assetFile;
 
         $redirectTo = is_account_page()

@@ -99,6 +99,21 @@ add_action('plugins_loaded', static function (): void {
         return;
     }
 
+    // A development environment signs in with WordPress passwords: nothing below is hooked, and
+    // the login screen says so, so nobody hunts for the missing SSO button. See Config::nativeLogin().
+    if (Config::nativeLogin()) {
+        add_filter('login_message', static function (string $message): string {
+            return $message . sprintf(
+                '<p class="message">%s</p>',
+                esc_html(sprintf(
+                    'JWT Auth is standing down in this %s environment: sign in with a WordPress password.',
+                    wp_get_environment_type()
+                ))
+            );
+        });
+        return;
+    }
+
     // Check for OIDC callback on every early init (priority 1, before anything else reads the request).
     add_action('init', OidcClient::handleCallback(...), 1);
 

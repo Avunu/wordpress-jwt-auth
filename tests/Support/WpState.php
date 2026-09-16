@@ -94,6 +94,7 @@ final class WpState
     public static bool $doingCron = false;
     public static bool $doingAjax = false;
     public static bool $isAdmin = false;
+    public static string $environmentType = 'production';
 
     /**
      * Settings → General → "Anyone can register".
@@ -146,6 +147,7 @@ final class WpState
         self::$doingCron = false;
         self::$doingAjax = false;
         self::$isAdmin = false;
+        self::$environmentType = 'production';
         self::$usersCanRegister = true;
         self::$defaultRole = 'subscriber';
         self::$isAccountPage = false;
