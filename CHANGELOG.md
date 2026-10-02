@@ -1,5 +1,16 @@
 # Changelog
 
+## [4.2.1](https://github.com/Avunu/wordpress-jwt-auth/compare/v4.2.0...v4.2.1) (2026-10-02)
+
+
+### Miscellaneous Chores
+
+* bump firebase/php-jwt from 7.1.0 to 7.1.1 in the composer group ([#81](https://github.com/Avunu/wordpress-jwt-auth/issues/81)) ([5c8ab8a](https://github.com/Avunu/wordpress-jwt-auth/commit/5c8ab8a6d6703a0a9a242883873f5ff210a43adf))
+* bump firebase/php-jwt from 7.1.1 to 7.2.0 in the composer group ([#89](https://github.com/Avunu/wordpress-jwt-auth/issues/89)) ([b91f760](https://github.com/Avunu/wordpress-jwt-auth/commit/b91f760dc3bc566b73f513d3cefc38087c7edb5a))
+* bump firebase/php-jwt from 7.2.0 to 7.2.1 in the composer group ([#95](https://github.com/Avunu/wordpress-jwt-auth/issues/95)) ([e75b257](https://github.com/Avunu/wordpress-jwt-auth/commit/e75b2577ba545c0aa889f0036b918a182f73f202))
+* bump php-stubs/woocommerce-stubs in the composer group ([#84](https://github.com/Avunu/wordpress-jwt-auth/issues/84)) ([a080ce7](https://github.com/Avunu/wordpress-jwt-auth/commit/a080ce7863a2d3b28bafa146a1f2601aeb04da2b))
+* bump php-stubs/woocommerce-stubs in the composer group ([#91](https://github.com/Avunu/wordpress-jwt-auth/issues/91)) ([ebee140](https://github.com/Avunu/wordpress-jwt-auth/commit/ebee140588fe57a693464a2f91cfdd476c7f6dc5))
+
 ## [4.2.0](https://github.com/Avunu/wordpress-jwt-auth/compare/v4.1.0...v4.2.0) (2026-09-16)
 
 
