@@ -16,7 +16,7 @@ const HEX_COLOUR = /^#[0-9a-f]{6}$/i;
 export const Tenant = z.object({
 	/** OIDC client_id. Must match the site's JWT_AUTH_CLIENT_ID, and is used as the `aud` claim. */
 	clientId: z.string().min(1),
-	/** Human name shown on the sign-in pages and in the email ("Anabaptist Perspectives"). */
+	/** Human name shown on the sign-in pages and in the email ("Example Site"). */
 	displayName: z.string().min(1),
 	/** Exact-match allowlist of OIDC callback URLs. */
 	redirectUris: z.array(z.url()).min(1),

@@ -49,8 +49,8 @@ binding, optional rate-limit bindings, and the provider config (`ISSUER`, `FROM_
 
 ```jsonc
 {
-	"clientId": "anabaptistperspectives", // = the site's JWT_AUTH_CLIENT_ID, and its `aud`
-	"displayName": "Anabaptist Perspectives", // shown on the sign-in pages and in the email
+	"clientId": "example-site", // = the site's JWT_AUTH_CLIENT_ID, and its `aud`
+	"displayName": "Example Site", // shown on the sign-in pages and in the email
 	"redirectUris": ["https://example.org/?jwt_auth_callback=1"], // exact-match allowlist
 	"postLogoutRedirectUris": [], // optional extra post-logout origins
 	"replyToEmail": "info@example.org", // optional
