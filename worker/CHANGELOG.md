@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.0.1](https://github.com/Avunu/wordpress-jwt-auth/compare/jwt-auth-worker-v4.0.0...jwt-auth-worker-v4.0.1) (2026-10-02)
+
+
+### Bug Fixes
+
+* **ci:** restore worker check ([d2b3709](https://github.com/Avunu/wordpress-jwt-auth/commit/d2b3709e5f38a4e6ee166bdf076a2ea824680254))
+
 ## [4.0.0](https://github.com/Avunu/wordpress-jwt-auth/compare/jwt-auth-worker-v3.0.0...jwt-auth-worker-v4.0.0) (2026-08-14)
 
 
