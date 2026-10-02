@@ -93,6 +93,10 @@
 		"no-console": "off",
 		"unicorn/consistent-function-scoping": "off",
 		"unicorn/prefer-global-this": "off",
+		// A zod schema and its inferred type deliberately share a name
+		// (`const Tenant = z.object(...)` + `type Tenant = z.infer<typeof Tenant>`).
+		// The core rule can't tell a type from a value; tsc catches real redeclarations.
+		"no-redeclare": "off",
 
 		// ─── Off: style preferences that fight convention ─────────────────────
 		"func-style": "off",

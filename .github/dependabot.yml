@@ -37,3 +37,8 @@ updates:
     groups:
       npm:
         patterns: ["*"]
+    ignore:
+      # @cloudflare/vitest-pool-workers peers on vitest ^4; a major bump breaks `npm ci`.
+      # Drop this once pool-workers supports the next vitest major.
+      - dependency-name: vitest
+        update-types: ["version-update:semver-major"]

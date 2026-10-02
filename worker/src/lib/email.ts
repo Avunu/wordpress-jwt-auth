@@ -69,8 +69,8 @@ export function renderLoginEmail(args: LoginEmailArgs): {
  *
  * The From address is the provider's, not the tenant's: one verified sender domain means DMARC and
  * SPF are set up once for the whole fleet instead of per site. The tenant supplies the display name
- * — so the inbox shows "Example Site sign-in" — and optionally a Reply-To that lands
- * with the site owner rather than in a shared mailbox.
+ * — so the inbox shows "Example Site sign-in" — and optionally a Reply-To that lands with the site
+ * owner rather than in a shared mailbox.
  */
 export async function sendLoginEmail(
 	env: AuthWorkerEnv,
