@@ -9,9 +9,9 @@ async function makeProvider(): Promise<ProviderConfig> {
 	const { privateKey } = await generateKeyPair("RS256", { modulusLength: 2048, extractable: true });
 	const signingKeyPem = await exportPKCS8(privateKey);
 	return {
-		issuer: "https://auth.avunu.io",
-		issuerHost: "auth.avunu.io",
-		fromEmail: "login@avunu.io",
+		issuer: "https://auth.example.test",
+		issuerHost: "auth.example.test",
+		fromEmail: "login@example.test",
 		fromName: "Sign in",
 		turnstileSiteKey: "site",
 		turnstileSecretKey: "secret",
@@ -39,7 +39,7 @@ describe("id_token signing + derived JWKS", () => {
 		const jwks = await publicJwks(provider);
 
 		const { payload, protectedHeader } = await jwtVerify(token, createLocalJWKSet(jwks), {
-			issuer: "https://auth.avunu.io",
+			issuer: "https://auth.example.test",
 			audience: "alpha",
 		});
 

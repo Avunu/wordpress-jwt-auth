@@ -1,6 +1,6 @@
 // Server-rendered HTML for the login pages. All dynamic values are HTML-escaped.
 // One issuer now fronts many brands, so every page is rendered for a resolved tenant: its name is
-// what the person recognises, and its accent/logo are what stop auth.avunu.io looking like a
+// what the person recognises, and its accent/logo are what stop auth.example.test looking like a
 // phishing interstitial for a site they thought they were signing in to.
 //
 // Every screen is built as a *card* — the markup the client swaps — and a *shell* that wraps one
