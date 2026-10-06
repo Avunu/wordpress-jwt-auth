@@ -6,9 +6,7 @@ one-click magic link) and hands WordPress a signed OIDC `id_token`; WordPress fi
 `subscriber` and logs the user in.
 
 This package is the **reusable core**. It is published to GitHub Packages and consumed by thin
-wrappers in the private
-[`wordpress-auth-workers`](https://github.com/Avunu/wordpress-auth-workers) fleet repo.
-**Deployment lives in the fleet repo, not here.**
+wrappers in a private fleet repo. **Deployment lives in the fleet repo, not here.**
 
 ## Multi-tenant
 
