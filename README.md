@@ -17,7 +17,7 @@ Supports two modes:
 
 -   PHP 8.4+
 -   WordPress 6.4+
--   [Composer](https://getcomposer.org/)
+-   [Composer](https://getcomposer.org/), only when installing from source; the release zip bundles its dependencies
 
 * * *
 
@@ -129,6 +129,7 @@ The worker's source lives in [`worker/`](worker/) and is published to GitHub Pac
 | JWT_AUTH_TOKEN_COOKIE | — | Cookie name carrying the JWT (proxy mode). |
 | JWT_AUTH_TOKEN_HEADER | — | HTTP header name carrying the JWT (proxy mode). Falls back to Authorization: Bearer if neither cookie nor header is configured. |
 | JWT_AUTH_LOGOUT_URL | — | Provider logout URL. Overrides OIDC end_session_endpoint when set. |
+| JWT_AUTH_REQUIRE_VERIFIED_EMAIL | false | Require `email_verified: true` before an email address may claim an existing WordPress account. See [User creation](#user-creation). |
 | JWT_AUTH_CLAIM_EMAIL | email | JWT claim containing the user's email address. |
 | JWT_AUTH_CLAIM_FIRST_NAME | given_name | JWT claim for first name. |
 | JWT_AUTH_CLAIM_LAST_NAME | family_name | JWT claim for last name. |
@@ -166,6 +167,8 @@ New users are created with:
 -   The provider's `sub` claim stored in user meta as `jwt_auth_sub`.
 
 On every subsequent login, the user's first name, last name, display name, and email are synced from the JWT claims. The `sub` meta is used for lookups first, so email changes at the provider are handled gracefully.
+
+An existing account is adopted by email only when the provider has not said the address is unverified: a token carrying `email_verified: false` never claims an account that way. A token that omits the claim is accepted by default, because the companion worker never issues an unverified address and older tokens predate the claim. For a provider with self-service signup, set `define('JWT_AUTH_REQUIRE_VERIFIED_EMAIL', true);` to demand `email_verified: true` instead. Accounts already linked by `sub` are unaffected.
 
 ### What new accounts can do
 
