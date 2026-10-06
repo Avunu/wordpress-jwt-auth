@@ -1,0 +1,10 @@
+{
+	"$schema": "./node_modules/@avunu/docusystem/config.schema.json",
+	"name": "WordPress JWT Auth",
+	"tagline": "Replaces WordPress logins with single sign-on through an OIDC provider or an identity-aware proxy, configured entirely in wp-config.php.",
+	"slug": "wordpress-jwt-auth",
+	"platform": "wordpress",
+	"repo": "https://github.com/Avunu/wordpress-jwt-auth",
+	"domain": "wordpress-jwt-auth.avunu.net",
+	"license": "MIT"
+}
