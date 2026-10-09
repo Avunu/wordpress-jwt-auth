@@ -35,6 +35,12 @@ async function route(
 		return handleJwks(config.provider);
 	}
 	if (pathname === "/authorize") {
+		if (method === "HEAD") {
+			// A probe for the URL's headers, which opens nothing and sets no cookie. Answering it
+			// lets clients that check the page this way stop after one request instead of falling
+			// back to a GET.
+			return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
+		}
 		if (method === "GET") {
 			return handleAuthorizeGet(request, env, config);
 		}

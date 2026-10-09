@@ -811,6 +811,18 @@ describe("GET /logout", () => {
 });
 
 describe("routing", () => {
+	it("answers a HEAD probe of /authorize without opening a flow or setting a cookie", async () => {
+		const res = await exports.default.fetch(
+			authorizeUrl({ client_id: "alpha", redirect_uri: ALPHA_REDIRECT }),
+			{
+				method: "HEAD",
+				redirect: "manual",
+			},
+		);
+		expect(res.status).toBe(204);
+		expect(res.headers.get("Set-Cookie")).toBeNull();
+	});
+
 	it("404s an unknown path and a wrong method", async () => {
 		const unknownPath = await exports.default.fetch(`${ISSUER}/nope`);
 		expect(unknownPath.status).toBe(404);
