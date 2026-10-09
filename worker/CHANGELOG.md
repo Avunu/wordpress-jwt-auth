@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.0.1](https://github.com/Avunu/wordpress-jwt-auth/compare/jwt-auth-worker-v4.0.0...jwt-auth-worker-v4.0.1) (2026-10-09)
+
+
+### Bug Fixes
+
+* **ci:** restore worker check ([d2b3709](https://github.com/Avunu/wordpress-jwt-auth/commit/d2b3709e5f38a4e6ee166bdf076a2ea824680254))
+* **worker:** keep a script's request from breaking an open sign-in ([#110](https://github.com/Avunu/wordpress-jwt-auth/issues/110)) ([078a51e](https://github.com/Avunu/wordpress-jwt-auth/commit/078a51ea76bdd9705d952455fd1eac996bf9cb25))
+
 ## [4.0.0](https://github.com/Avunu/wordpress-jwt-auth/compare/jwt-auth-worker-v3.0.0...jwt-auth-worker-v4.0.0) (2026-08-14)
 
 
