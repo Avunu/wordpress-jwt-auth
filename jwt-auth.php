@@ -82,8 +82,11 @@ $jwtAuthUpdateChecker = \YahnisElsts\PluginUpdateChecker\v5\PucFactory::buildUpd
     'jwt-auth'
 );
 $jwtAuthVcsApi = $jwtAuthUpdateChecker->getVcsApi();
-// Download the built release asset, not GitHub's source tarball (which lacks vendor/).
-$jwtAuthVcsApi->enableReleaseAssets('/jwt-auth\.zip$/');
+// Download the built release asset, not GitHub's source archive (which lacks vendor/). The second
+// argument is PUC's Api::REQUIRE_RELEASE_ASSETS (2): by default PUC falls back to the source archive
+// when the newest release has no matching asset, which happens between publishing a release and
+// attaching its zip. The literal is used because the class sits in a version-specific namespace.
+$jwtAuthVcsApi->enableReleaseAssets('/jwt-auth\.zip$/', 2);
 // This repo also publishes the companion worker under `jwt-auth-worker-v*` tags. Only
 // consider plain version tags (v1.2.3) so those never masquerade as a plugin update. PUC
 // derives the version as ltrim(tag, 'v'), so the filter matches a bare version number.
