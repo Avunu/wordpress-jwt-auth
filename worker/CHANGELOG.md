@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.0.2](https://github.com/Avunu/wordpress-jwt-auth/compare/jwt-auth-worker-v4.0.1...jwt-auth-worker-v4.0.2) (2026-10-09)
+
+
+### Bug Fixes
+
+* **worker:** answer HEAD probes of /authorize without opening a flow ([#112](https://github.com/Avunu/wordpress-jwt-auth/issues/112)) ([60b3e71](https://github.com/Avunu/wordpress-jwt-auth/commit/60b3e71c1b9e813c78b81cd77b8e5e3944c1b222))
+
 ## [4.0.1](https://github.com/Avunu/wordpress-jwt-auth/compare/jwt-auth-worker-v4.0.0...jwt-auth-worker-v4.0.1) (2026-10-09)
 
 
