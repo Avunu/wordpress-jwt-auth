@@ -213,6 +213,47 @@ describe("GET /authorize — tenant resolution", () => {
 		expect(stepped.headers.get("Set-Cookie")).toContain("Max-Age=900");
 	});
 
+	it("reads the flow cookie when the browser splits the Cookie header into several fields", async () => {
+		// HTTP/2 and HTTP/3 browsers send each cookie as its own header field. Headers.get joins
+		// them with ", ", and the flow cookie as the last value of one field then carried the next
+		// field's text into its value, so a valid submit was refused as "Start again".
+		const first = await get(authorizeUrl({ client_id: "alpha", redirect_uri: ALPHA_REDIRECT }));
+		const [flowCookie] = (first.headers.get("Set-Cookie") ?? "").split(";");
+		const flow = flowIdFrom(flowCookie ?? "");
+		const res = await exports.default.fetch(`${ISSUER}/authorize`, {
+			method: "POST",
+			redirect: "manual",
+			headers: [
+				["content-type", "application/x-www-form-urlencoded"],
+				["cookie", `cf_clearance=abc; ${flowCookie}`],
+				["cookie", "other=1"],
+			],
+			body: new URLSearchParams({ step: "change_email", flow }).toString(),
+		});
+		expect(res.status).toBe(200);
+		expect(await res.text()).not.toContain("Start again");
+	});
+
+	it("does not let a script's fetch of /authorize replace the cookie under an open form", async () => {
+		// A browser extension (or prefetcher) that GETs the sign-in URL from the page itself is not
+		// a sign-in starting. Before this guard it opened a second flow and overwrote the one cookie
+		// the person's form depends on, so their next submit was refused as "out of date".
+		const url = authorizeUrl({ client_id: "alpha", redirect_uri: ALPHA_REDIRECT });
+		const scripted = await exports.default.fetch(url, {
+			redirect: "manual",
+			headers: { "Sec-Fetch-Mode": "cors", "Sec-Fetch-Dest": "empty" },
+		});
+		expect(scripted.status).toBe(204);
+		expect(scripted.headers.get("Set-Cookie")).toBeNull();
+
+		const navigated = await exports.default.fetch(url, {
+			redirect: "manual",
+			headers: { "Sec-Fetch-Mode": "navigate", "Sec-Fetch-Dest": "document" },
+		});
+		expect(navigated.status).toBe(200);
+		expect(navigated.headers.get("Set-Cookie")).toContain("__Host-wp_auth_flow=");
+	});
+
 	it("rejects an unknown client_id", async () => {
 		const res = await get(authorizeUrl({ client_id: "nobody", redirect_uri: ALPHA_REDIRECT }));
 		expect(res.status).toBe(400);

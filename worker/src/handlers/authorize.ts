@@ -41,6 +41,14 @@ export async function handleAuthorizeGet(
 	env: AuthWorkerEnv,
 	config: WorkerConfig,
 ): Promise<Response> {
+	// A sign-in starts with the browser navigating to /authorize. A script fetching it (a browser
+	// extension pre-checking the page, a prefetcher) is not starting a sign-in, but if it opened a
+	// flow it would overwrite the one cookie the person's open form depends on — and their next
+	// submit would be refused as "out of date". Refuse before any flow exists or any cookie moves.
+	if (isScriptedRequest(request)) {
+		return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
+	}
+
 	const url = new URL(request.url);
 	const parsed = AuthorizeParams.safeParse(Object.fromEntries(url.searchParams));
 	if (!parsed.success) {
@@ -96,6 +104,16 @@ export async function handleAuthorizeGet(
 		res.headers.append("Set-Cookie", session.cookie);
 	}
 	return res;
+}
+
+/**
+ * True when Fetch Metadata says the request came from script rather than a top-level navigation.
+ * Browsers that send no metadata are let through: the header is absent, not a claim of script.
+ */
+function isScriptedRequest(request: Request): boolean {
+	const mode = request.headers.get("Sec-Fetch-Mode");
+	const dest = request.headers.get("Sec-Fetch-Dest");
+	return (mode !== null && mode !== "navigate") || (dest !== null && dest !== "document");
 }
 
 /** POST /authorize — send an email, verify a PIN, or accept the existing SSO session. */
