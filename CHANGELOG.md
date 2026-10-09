@@ -1,5 +1,19 @@
 # Changelog
 
+## [4.2.2](https://github.com/Avunu/wordpress-jwt-auth/compare/v4.2.1...v4.2.2) (2026-10-09)
+
+
+### Bug Fixes
+
+* require release asset for autoupdater ([d26a9aa](https://github.com/Avunu/wordpress-jwt-auth/commit/d26a9aac9d1ab27da62d084b4996107d56c9c7d2))
+
+
+### Miscellaneous Chores
+
+* allow tmp files (for diagnosis) ([166aaf8](https://github.com/Avunu/wordpress-jwt-auth/commit/166aaf84d2dc3705dc8b697f17d1e211550727f5))
+* update composer lock ([90e62ff](https://github.com/Avunu/wordpress-jwt-auth/commit/90e62ff260cee109c57f5b3b4bfd4c70319b97d0))
+* update flake lock ([7905b02](https://github.com/Avunu/wordpress-jwt-auth/commit/7905b025728fd11299a5a52c17fb95f5795c8093))
+
 ## [4.2.1](https://github.com/Avunu/wordpress-jwt-auth/compare/v4.2.0...v4.2.1) (2026-10-09)
 
 
