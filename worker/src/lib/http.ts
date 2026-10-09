@@ -47,7 +47,11 @@ export function getCookie(request: Request, name: string): string | null {
 	if (!header) {
 		return null;
 	}
-	for (const part of header.split(";")) {
+	// HTTP/2 and HTTP/3 browsers send the Cookie header as several fields ("crumbs"), and
+	// Headers.get joins them with ", ". A comma cannot appear in a cookie value (RFC 6265), so split
+	// on it too; splitting only on ";" folded the next crumb into this cookie's value, which read as
+	// a different flow and refused a perfectly good submit.
+	for (const part of header.split(/[;,]/)) {
 		const eq = part.indexOf("=");
 		if (eq === -1) {
 			continue;
