@@ -48,14 +48,14 @@
 	},
 	"devDependencies": {
 		"@cloudflare/vitest-pool-workers": "^0.23.0",
-		"@cloudflare/workers-types": "^5.20261012.1",
+		"@cloudflare/workers-types": "^5.20261013.1",
 		"jsdom": "^30.1.2",
-		"oxfmt": "^0.72.0",
-		"oxlint": "^1.87.0",
+		"oxfmt": "^0.73.0",
+		"oxlint": "^1.88.0",
 		"oxlint-tsgolint": "^7.0.2004",
 		"typescript": "^7.0.2",
 		"vitest": "^4.1.11",
-		"wrangler": "^4.149.0"
+		"wrangler": "^4.150.0"
 	},
 	"peerDependencies": {
 		"@cloudflare/workers-types": "*"
