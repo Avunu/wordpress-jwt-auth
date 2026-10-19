@@ -49,6 +49,9 @@ export default defineConfig(async () => {
 		],
 		test: {
 			include: ["test/integration/**/*.test.ts"],
+			// PIN hashing and RS256 signing inside workerd are CPU-bound; on a busy shared CI runner a
+			// single test overran vitest's 5 s default while passing comfortably when the host is idle.
+			testTimeout: 30_000,
 		},
 	};
 });
