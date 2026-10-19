@@ -8,7 +8,7 @@
 // It also covers the block checkout, where the old selector list put an SSO button inside the
 // contact/address field group — again invisible to the server.
 import { chromium } from "playwright-core";
-import { bootPlayground, CHROME_PATH, MARKER_CLASS, phpJson } from "./lib.mjs";
+import { bootPlayground, CHROME_PATH, CHROME_ARGS, MARKER_CLASS, phpJson } from "./lib.mjs";
 import { tally } from "./assert.mjs";
 
 const t = tally();
@@ -17,11 +17,18 @@ console.log(`Test C — browser smoke (WordPress ${process.env.WP_VERSION ?? "la
 let server;
 let browser;
 try {
-	server = await bootPlayground({ port: 9430 });
+	server = await bootPlayground();
 	const url = server.serverUrl;
-	browser = await chromium.launch({ executablePath: CHROME_PATH, headless: true });
+	browser = await chromium.launch({
+		executablePath: CHROME_PATH,
+		args: CHROME_ARGS,
+		headless: true,
+	});
 
 	const page = await browser.newPage();
+	// Every request is PHP running in WebAssembly; on a loaded shared runner a single wp-admin page
+	// can take longer than Playwright's 30 s default.
+	page.setDefaultTimeout(120_000);
 	const pageErrors = [];
 	const consoleErrors = [];
 	page.on("pageerror", (e) => pageErrors.push(`${e.name}: ${e.message}`));

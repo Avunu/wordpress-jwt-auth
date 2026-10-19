@@ -25,6 +25,7 @@ import { chromium } from "playwright-core";
 import {
 	bootPlayground,
 	CHROME_PATH,
+	CHROME_ARGS,
 	countMarkers,
 	fetchPage,
 	MARKER_CLASS,
@@ -42,9 +43,16 @@ const CREDENTIAL_INPUT =
 let server;
 let browser;
 try {
-	server = await bootPlayground({ port: 9440, muPlugins: "mu-plugins-exclusive" });
-	browser = await chromium.launch({ executablePath: CHROME_PATH, headless: true });
+	server = await bootPlayground({ muPlugins: "mu-plugins-exclusive" });
+	browser = await chromium.launch({
+		executablePath: CHROME_PATH,
+		args: CHROME_ARGS,
+		headless: true,
+	});
 	const page = await browser.newPage();
+	// Every request is PHP running in WebAssembly; on a loaded shared runner a single wp-admin page
+	// can take longer than Playwright's 30 s default.
+	page.setDefaultTimeout(120_000);
 
 	// -------------------------------------------------------------------
 	// The switch is on
