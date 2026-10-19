@@ -26,6 +26,9 @@ try {
 	});
 
 	const page = await browser.newPage();
+	// Every request is PHP running in WebAssembly; on a loaded shared runner a single wp-admin page
+	// can take longer than Playwright's 30 s default.
+	page.setDefaultTimeout(120_000);
 	const pageErrors = [];
 	const consoleErrors = [];
 	page.on("pageerror", (e) => pageErrors.push(`${e.name}: ${e.message}`));
