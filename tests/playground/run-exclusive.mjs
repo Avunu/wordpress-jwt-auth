@@ -43,7 +43,7 @@ const CREDENTIAL_INPUT =
 let server;
 let browser;
 try {
-	server = await bootPlayground({ port: 9440, muPlugins: "mu-plugins-exclusive" });
+	server = await bootPlayground({ muPlugins: "mu-plugins-exclusive" });
 	browser = await chromium.launch({
 		executablePath: CHROME_PATH,
 		args: CHROME_ARGS,

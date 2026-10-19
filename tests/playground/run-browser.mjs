@@ -17,7 +17,7 @@ console.log(`Test C — browser smoke (WordPress ${process.env.WP_VERSION ?? "la
 let server;
 let browser;
 try {
-	server = await bootPlayground({ port: 9430 });
+	server = await bootPlayground();
 	const url = server.serverUrl;
 	browser = await chromium.launch({
 		executablePath: CHROME_PATH,

@@ -5,6 +5,7 @@ import { runCLI } from "@wp-playground/cli";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { existsSync } from "node:fs";
+import { createServer } from "node:net";
 
 export const HARNESS_DIR = dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = resolve(HARNESS_DIR, "..", "..");
@@ -24,6 +25,21 @@ export const CHROME_ARGS = ["--no-sandbox", "--no-zygote"];
 export const MARKER_CLASS = "jwt-auth-sso";
 
 /**
+ * A port nothing is listening on right now. The self-hosted runner hosts several job runners on one
+ * network namespace, so a fixed port collides with another repo's job (EADDRINUSE).
+ */
+async function freePort() {
+	return new Promise((ok, fail) => {
+		const srv = createServer();
+		srv.once("error", fail);
+		srv.listen(0, () => {
+			const { port } = srv.address();
+			srv.close(() => ok(port));
+		});
+	});
+}
+
+/**
  * Boot a playground server with WooCommerce installed, the built plugin mounted and activated, and
  * the JWT Auth constants defined by an mu-plugin.
  *
@@ -35,7 +51,7 @@ export const MARKER_CLASS = "jwt-auth-sso";
  */
 export async function bootPlayground({
 	wp = process.env.WP_VERSION ?? "latest",
-	port = 9410,
+	port,
 	muPlugins = "mu-plugins",
 } = {}) {
 	if (!existsSync(resolve(REPO_ROOT, "build/woo-login.js"))) {
@@ -52,7 +68,7 @@ export async function bootPlayground({
 		command: "server",
 		php: "8.4",
 		wp,
-		port,
+		port: port ?? (await freePort()),
 		quiet: true,
 		mount: [
 			{ hostPath: REPO_ROOT, vfsPath: "/wordpress/wp-content/plugins/jwt-auth" },

@@ -20,7 +20,7 @@ const PASSWORD = "correct-horse-battery-staple";
 
 console.log("Test D — direct password login is refused by real WordPress core");
 
-const server = await bootPlayground({ port: 9412 });
+const server = await bootPlayground();
 try {
 	const setup = await phpJson(
 		server,
