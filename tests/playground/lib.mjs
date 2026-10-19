@@ -14,6 +14,12 @@ export const PLUGIN_PATH = "jwt-auth/jwt-auth.php";
 export const CHROME_PATH =
 	process.env.CHROME_PATH ?? "/run/current-system/sw/bin/google-chrome-stable";
 
+// The self-hosted runner's service filters the capset syscall, which kills Chromium's zygote
+// ("Did not receive ping from zygote child") and crashes the first page. Without the sandbox
+// there is nothing for the zygote to set up, so both are off; this harness only loads the
+// local playground.
+export const CHROME_ARGS = ["--no-sandbox", "--no-zygote"];
+
 /** The marker class both injectors emit; counting it is what every test here is really doing. */
 export const MARKER_CLASS = "jwt-auth-sso";
 

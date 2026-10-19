@@ -25,6 +25,7 @@ import { chromium } from "playwright-core";
 import {
 	bootPlayground,
 	CHROME_PATH,
+	CHROME_ARGS,
 	countMarkers,
 	fetchPage,
 	MARKER_CLASS,
@@ -43,7 +44,11 @@ let server;
 let browser;
 try {
 	server = await bootPlayground({ port: 9440, muPlugins: "mu-plugins-exclusive" });
-	browser = await chromium.launch({ executablePath: CHROME_PATH, headless: true });
+	browser = await chromium.launch({
+		executablePath: CHROME_PATH,
+		args: CHROME_ARGS,
+		headless: true,
+	});
 	const page = await browser.newPage();
 
 	// -------------------------------------------------------------------

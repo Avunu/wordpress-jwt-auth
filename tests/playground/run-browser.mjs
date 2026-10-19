@@ -8,7 +8,7 @@
 // It also covers the block checkout, where the old selector list put an SSO button inside the
 // contact/address field group — again invisible to the server.
 import { chromium } from "playwright-core";
-import { bootPlayground, CHROME_PATH, MARKER_CLASS, phpJson } from "./lib.mjs";
+import { bootPlayground, CHROME_PATH, CHROME_ARGS, MARKER_CLASS, phpJson } from "./lib.mjs";
 import { tally } from "./assert.mjs";
 
 const t = tally();
@@ -19,7 +19,11 @@ let browser;
 try {
 	server = await bootPlayground({ port: 9430 });
 	const url = server.serverUrl;
-	browser = await chromium.launch({ executablePath: CHROME_PATH, headless: true });
+	browser = await chromium.launch({
+		executablePath: CHROME_PATH,
+		args: CHROME_ARGS,
+		headless: true,
+	});
 
 	const page = await browser.newPage();
 	const pageErrors = [];
