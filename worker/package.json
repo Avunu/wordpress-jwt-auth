@@ -43,7 +43,7 @@
 		"typecheck:dom": "tsc -p test/dom/tsconfig.json --noEmit"
 	},
 	"dependencies": {
-		"jose": "6.2.12",
+		"jose": "6.2.13",
 		"zod": "4.6.7"
 	},
 	"devDependencies": {
@@ -55,7 +55,7 @@
 		"oxlint-tsgolint": "^7.0.2004",
 		"typescript": "^7.0.2",
 		"vitest": "^4.1.12",
-		"wrangler": "^4.151.2"
+		"wrangler": "^4.151.3"
 	},
 	"peerDependencies": {
 		"@cloudflare/workers-types": "*"
