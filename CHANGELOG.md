@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.2.3](https://github.com/Avunu/wordpress-jwt-auth/compare/v4.2.2...v4.2.3) (2026-11-06)
+
+
+### Miscellaneous Chores
+
+* bump phpunit/phpunit from 12.5.38 to 13.4.5 in the composer group ([#131](https://github.com/Avunu/wordpress-jwt-auth/issues/131)) ([a70a684](https://github.com/Avunu/wordpress-jwt-auth/commit/a70a68463c4a603f706db30025bc2ac17cdb4f48))
+* bump the composer group with 2 updates ([#139](https://github.com/Avunu/wordpress-jwt-auth/issues/139)) ([b2e5320](https://github.com/Avunu/wordpress-jwt-auth/commit/b2e5320a0fd1aa370854078b7d00c1df31fd019c))
+
 ## [4.2.2](https://github.com/Avunu/wordpress-jwt-auth/compare/v4.2.1...v4.2.2) (2026-10-09)
 
 
