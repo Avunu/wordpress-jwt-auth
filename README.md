@@ -275,6 +275,7 @@ Under [exclusive mode](#exclusive-mode) the same two injectors do the same two j
 ```bash
 nix develop            # PHP 8.4 with the required extensions, Composer, PHPStan, Node
 composer install
+prek install           # git hooks; first `uv tool install prek` (no nix needed)
 composer test          # PHPUnit
 composer phpstan       # static analysis, level 8, WordPress-aware
 composer check         # both

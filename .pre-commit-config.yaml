@@ -1,0 +1,44 @@
+# Git hooks for prek (https://prek.j178.dev), a drop-in for pre-commit that reads this file
+# unchanged. `prek install` sets up both stages. Nothing here needs nix: the local hooks run
+# package.json scripts (after `npm ci` in the root and in worker/) or a pinned PHPStan (after
+# `composer install`, see README).
+#
+# Every check runs at pre-push over the whole tree, not over the staged files only.
+default_install_hook_types: [pre-commit, pre-push]
+
+repos:
+  # Formatter and linter over the whole tree, through the package.json `check` scripts that CI runs:
+  # oxfmt --check, oxlint, type-aware oxlint and tsc. Each chain is one hook, so no tool runs twice.
+  # The worker chain also runs its integration and DOM typechecks. The tools come from each
+  # package-lock.json, and every check is read-only.
+  - repo: local
+    hooks:
+      - id: assets-check
+        name: "npm run check (browser assets: oxfmt, oxlint, tsc)"
+        entry: npm run check
+        language: system
+        pass_filenames: false
+        files: ^(assets|types|tests/dom)/.*\.ts$|^(rolldown|vitest)\.config\.ts$
+        stages: [pre-push]
+
+      - id: worker-check
+        name: npm --prefix worker run check (oxfmt, oxlint, tsc)
+        entry: npm --prefix worker run check
+        language: system
+        pass_filenames: false
+        files: ^worker/.*\.(ts|json|jsonc)$
+        stages: [pre-push]
+
+  # PHPStan is not in composer.lock: the root package `replace`s phpstan/phpstan so that nix can
+  # supply it. This hook pins the version nixpkgs supplies to the flake (2.2.16) instead. It needs
+  # PHP 8.4 on PATH the first time prek creates the hook environment (prek records that PHP).
+  - repo: local
+    hooks:
+      - id: phpstan
+        name: phpstan (level 8, WordPress-aware)
+        entry: phpstan analyse --memory-limit=2G
+        language: php
+        additional_dependencies: ["phpstan/phpstan:2.2.16"]
+        pass_filenames: false
+        files: \.php$
+        stages: [pre-push]
