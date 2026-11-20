@@ -34,11 +34,11 @@ jobs:
     steps:
       # Full history: on `push` the filter diffs against the previous commit, which a shallow
       # clone would not have. Pull requests are resolved through the API and need neither.
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
 
-      - uses: dorny/paths-filter@v4
+      - uses: dorny/paths-filter@v4.0.3
         id: filter
         with:
           # Each list is what that job reads, nothing more. This workflow appears in both so a
@@ -84,9 +84,9 @@ jobs:
       run:
         working-directory: worker
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version: 22
           cache: npm
@@ -103,9 +103,9 @@ jobs:
     if: ${{ needs.changes.outputs.assets == 'true' }}
     runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || fromJSON('["self-hosted","nixos"]') }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version: 22
           cache: npm
@@ -117,7 +117,7 @@ jobs:
 
       # setup-php needs sudo/apt, so it runs on GitHub-hosted runners only; the self-hosted
       # NixOS runner takes PHP 8.4 and Composer from the flake's nixpkgs.
-      - uses: shivammathur/setup-php@v2
+      - uses: shivammathur/setup-php@2.40.0
         if: runner.environment == 'github-hosted'
         with:
           php-version: "8.4"
@@ -146,7 +146,7 @@ jobs:
       - run: npm run test:security
 
       # The downloaded Chrome cannot run on NixOS; the self-hosted runner uses nixpkgs' Chromium.
-      - uses: browser-actions/setup-chrome@v2
+      - uses: browser-actions/setup-chrome@v2.2.0
         if: runner.environment == 'github-hosted'
         id: setup-chrome
       - id: nix-chrome
@@ -163,9 +163,9 @@ jobs:
     if: ${{ needs.changes.outputs.php == 'true' }}
     runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || fromJSON('["self-hosted","nixos"]') }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
 
-      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/nix-installer-action@v23
         if: runner.environment == 'github-hosted'
 
       # Self-contained, offline: composerDeps (WordPress/WooCommerce stubs + phpstan-wordpress)
@@ -177,9 +177,9 @@ jobs:
     if: ${{ needs.changes.outputs.php == 'true' }}
     runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || fromJSON('["self-hosted","nixos"]') }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
 
-      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/nix-installer-action@v23
         if: runner.environment == 'github-hosted'
 
       # Offline for the same reason as phpstan: phpunit and its dependencies come from

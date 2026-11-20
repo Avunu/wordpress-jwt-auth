@@ -1,0 +1,33 @@
+name: Actions lock
+
+# Verifies .github/workflows/actions.lock: every action in the workflows must still be pinned to
+# the release and commit the lock records. It is its own workflow, so a lock failure is reported
+# here and does not change the results of the quality gates in check.yml or of release.yml.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  lockfile:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install gh-actions-lock
+        run: |
+          if ! gh extension list | grep -q 'github/gh-actions-lock'; then
+            gh extension install github/gh-actions-lock --pin v0.5.1
+          fi
+
+      - name: Verify the actions lockfile
+        run: gh actions-lock --verify
