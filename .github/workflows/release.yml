@@ -30,18 +30,18 @@ jobs:
     steps:
       - name: Release Please
         id: release
-        uses: googleapis/release-please-action@v5
+        uses: googleapis/release-please-action@v5.0.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           config-file: .release-please/config.json
           manifest-file: .release-please/manifest.json
 
       # Checkout once if ANY package released this run.
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
         if: ${{ steps.release.outputs.releases_created }}
 
       # --- Plugin (root package): build the Nix zip + attach to its v{version} release ------
-      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/nix-installer-action@v23
         if: ${{ steps.release.outputs.release_created && runner.environment == 'github-hosted' }}
 
       - name: Build plugin zip
@@ -59,7 +59,7 @@ jobs:
       # --- Worker package: publish @avunu/jwt-auth-worker to GitHub Packages ----------------
       - name: Setup Node
         if: ${{ steps.release.outputs['worker--release_created'] }}
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@v7.1.0
         with:
           node-version: 22
           registry-url: https://npm.pkg.github.com
