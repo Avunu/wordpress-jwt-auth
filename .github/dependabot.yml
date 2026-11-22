@@ -2,16 +2,18 @@ version: 2
 
 # Keeps every ecosystem in this repo up to date. Updates land on `main` automatically
 # (see .github/workflows/dependabot-auto-merge.yml); release-please remains the gate for
-# actually cutting a plugin/worker release. Dep bumps use the `chore` type so they never
-# force a release on their own — they ride along with the next real release.
+# actually cutting a plugin/worker release. Dep bumps use the `fix(deps)` type, so each merged
+# bump ships as a patch release.
 updates:
   # GitHub Actions used by the workflows.
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: daily
+    cooldown:
+      default-days: 7
     commit-message:
-      prefix: chore
+      prefix: fix(deps)
     groups:
       github-actions:
         patterns: ["*"]
@@ -21,8 +23,10 @@ updates:
     directory: /
     schedule:
       interval: daily
+    cooldown:
+      default-days: 7
     commit-message:
-      prefix: chore
+      prefix: fix(deps)
     groups:
       composer:
         patterns: ["*"]
@@ -32,8 +36,10 @@ updates:
     directory: /worker
     schedule:
       interval: daily
+    cooldown:
+      default-days: 7
     commit-message:
-      prefix: chore
+      prefix: fix(deps)
     groups:
       npm:
         patterns: ["*"]

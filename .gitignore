@@ -1,7 +1,6 @@
 .devenv
 .direnv
 .phpunit.cache
-.pre-commit-config.yaml
 /build
 jwt-auth.zip
 node_modules
